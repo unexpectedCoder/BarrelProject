@@ -10,7 +10,8 @@ void Solver::fillAnalogs(const string &path)
 {
 	Analog a;
 	char ch;
-	cout << "\tAdd analog? (+/-): "; cin >> ch;
+	cout << "\tAdd analog? (+/-): ";
+	cin >> ch;
 
 	while (ch == '+')
 	{
@@ -27,19 +28,19 @@ void Solver::fillAnalogs(const string &path)
 
 	// Запись в файл
 	Parser::createFile(path);
-	Parser par(path);
+	Parser p(path);
 	for (Analogs::iterator itr = analogs.begin(); itr != analogs.end(); itr++)
 	{
-		par.write(itr->name, '\t');
-		par.write(itr->d, '\t');
-		par.write(itr->q, '\t');
-		par.write(itr->vd, '\n');
+		p.write(itr->name, '\t');
+		p.write(itr->d, '\t');
+		p.write(itr->q, '\t');
+		p.write(itr->vd, '\n');
 	}
 }
 
 Analogs& Solver::calcAnalogs(const string &path)
 {
-	Parser par(path);
+	Parser p(path);
 	Analog a;
 	double CE;
 	char ch;
@@ -47,12 +48,12 @@ Analogs& Solver::calcAnalogs(const string &path)
 	analogs.clear();
 	while (true)
 	{
-		a.name = par.readStr();
-		a.d = par.readNext();
-		a.q = par.readNext();
-		a.vd = par.readNext();
+		a.name = p.readStr();
+		a.d = p.readNext();
+		a.q = p.readNext();
+		a.vd = p.readNext();
 
-		if (par.isEnd()) break;
+		if (p.isEnd()) break;
 
 		double Cq = a.q / pow(a.d * 10, 3);
 		CE = a.q * pow(a.vd, 2) / (2e3 * Consts::g * pow(a.d, 3)) * 1e-3;
@@ -60,14 +61,14 @@ Analogs& Solver::calcAnalogs(const string &path)
 		do
 		{
 			double eta = linInterp(CE).eta_omega;
-			a.CE15 = countCE15(Cq, CE, eta);
-			double pm_kr = linInterp(a.CE15).p;
+			a.CE15 = calcCE15(Cq, CE, eta);
+			double pm_kr = linInterp(a.CE15).pm_kr;
 			double omega = a.q * pow(a.vd, 2.0) / (2.0 * eta * Consts::g * 1e3);
 			double fi = Consts::K + 1.0 / 3.0 * omega / a.q;
-			a.p = pm_kr * fi * Consts::Nkr / (Consts::fi1 + 0.5 * omega / a.q) * 1.2;
+			a.pm = pm_kr * fi * Consts::Nkr / (Consts::fi1 + 0.5 * omega / a.q) * 1.2;
 
 			cout << "\tAnalog's p(CE_15) (in tech system) for " << a.name << ":\n" <<
-				"\t\tCE15 = " << a.CE15 << ", pm = " << a.p << endl;
+				"\t\tCE15 = " << a.CE15 << ", pm = " << a.pm << endl;
 			
 			cout << "\tClarify the solution? (+/-): ";
 			cin >> ch;
@@ -78,16 +79,53 @@ Analogs& Solver::calcAnalogs(const string &path)
 		analogs.push_back(a);
 	}
 
-	par.close();
+	p.close();
 	Parser::createFile("p_CE15.txt");
-	if (par.open("p_CE15.txt"))
+	if (p.open("p_CE15.txt"))
 		for (Analogs::iterator itr = analogs.begin(); itr != analogs.end(); itr++)
 		{
-			par.write(itr->CE15, '\t');
-			par.write(itr->p, '\n');
+			p.write(itr->CE15, '\t');
+			p.write(itr->pm, '\n');
 		}
 
 	return analogs;
+}
+
+Barrel& Solver::calcBarrelPressure(const string &path)
+{
+	double CE = barr.CE;		// Буфер для хранения CE, чтобы можно было рекурсивно искать pm
+	char ch;
+	do
+	{
+		barr.eta_omega = linInterp(CE).eta_omega;
+		barr.CE15 = calcCE15(barr.Cq, CE, barr.eta_omega);
+		barr.pm_kr = linInterp(barr.CE15).pm_kr;
+		barr.omega_q = pow(barr.vd, 2.0) / (2e3 * Consts::g * barr.eta_omega);
+		barr.fi = Consts::K + 1.0 / 3.0 * barr.omega_q;
+		barr.pm = barr.pm_kr * barr.fi * Consts::Nkr / (Consts::fi1 + 0.5 * barr.omega_q) * 1.2;
+
+		cout << "\t CE15 = " << barr.CE15 << ", pm = " << barr.pm << endl;
+		cout << "\tClarify the solution? (+/-): ";
+		cin >> ch;
+		if (ch == '+') CE = barr.CE15;
+	} while (ch == '+');
+
+	double pm_nround = barr.pm;				// Хранит неокругленное значение pm
+	barr.pm /= Consts::g / 1e6;				// Перевод в Па
+
+	cout << "\n\tFor your own sample pm = " << barr.pm * 1e-6 << " MPa\n";
+	cout << "\t - please, enter rounded pm, MPa: pm = ";
+	cin >> barr.pm;
+	barr.pm *= 1e6;										// Перевод в Па
+	// Расчет остальных характеристик
+	barr.p_mid = 0.5 * barr.pm;
+	barr.hi1 = 1 - (Consts::k - 1) * barr.p_mid / Consts::f *
+		(1 - Consts::alpha_k * Consts::delta) / Consts::delta;
+
+	// Запись в файл в виде таблички
+	makeTableTxt(pm_nround, path);
+
+	return barr;
 }
 
 Chuev Solver::linInterp(double CE, const string &path_chuev)
@@ -116,7 +154,49 @@ Chuev Solver::linInterp(double CE, const string &path_chuev)
 		eta1 + (CE - CE1) / (CE2 - CE1) * (eta2 - eta1));
 }
 
-double Solver::countCE15(double cq, double ce, double eta)
+double Solver::calcCE15(double cq, double ce, double eta)
 {
 	return 0.5 * 15.0 / cq * (ce - 3.0 * eta * cq + sqrt(pow(ce - 3.0 * eta * cq, 2.0) + 4.0 / 5.0 * ce * eta * pow(cq, 2.0)));
+}
+
+void Solver::makeTableTxt(double pm_nround, const string &path)
+{
+	Parser::createFile(path);
+	Parser p(path);
+
+	p.write("Cq:", ' ');
+	p.write(barr.Cq, '\t');
+	p.write("w/q:", ' ');
+	p.write(barr.omega_q, '\t');
+	p.write("pm_kr, atm:", ' ');
+	p.write(barr.pm_kr, '\t');
+	p.write("p0:", ' ');
+	p.write(Consts::p0, '\n');
+
+	p.write("CE:", ' ');
+	p.write(barr.CE, '\t');
+	p.write("K:", ' ');
+	p.write(Consts::K, '\t');
+	p.write("pm, atm:", ' ');
+	p.write(pm_nround, '\t');
+	p.write("(l/d)max:", ' ');
+	p.write("???", '\n');
+
+	p.write("CE15:", ' ');
+	p.write(barr.CE15, '\t');
+	p.write("fi:", ' ');
+	p.write(barr.fi, '\t');
+	p.write("pm, Mpa:", ' ');
+	p.write(pm_nround / Consts::g, '\t');
+	p.write("hi:", ' ');
+	p.write(barr.hi1, '\n');
+
+	p.write("ew:", ' ');
+	p.write(barr.eta_omega, '\t');
+	p.write("Nkr:", ' ');
+	p.write(Consts::Nkr, '\t');
+	p.write("pm_r, MPa:", ' ');
+	p.write(barr.pm * 1e-6, '\t');
+	p.write("ns:", ' ');
+	p.write(barr.ns, '\n');
 }

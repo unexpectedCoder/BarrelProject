@@ -20,6 +20,11 @@ int main()
 	if (choice == '+')
 		sol.calcAnalogs();
 
+	cout << "Calculate your own sample& (+/-): ";
+	cin >> choice;
+	if (choice == '+')
+		sol.calcBarrelPressure();
+
 	cout << endl;
 	system("pause");
 	return 0;
