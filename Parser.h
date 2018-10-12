@@ -22,7 +22,7 @@ public:
 
 	double readNext();
 	std::string readStr();
-	void write(const std::string &txt, char split);
+	void write(const std::string &txt);
 	void write(double x, char split);
 
 	bool isEnd() const;

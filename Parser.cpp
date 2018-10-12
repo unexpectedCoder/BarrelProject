@@ -4,8 +4,10 @@ using namespace std;
 
 bool Parser::open(const string &path)
 {
-	file.open(path.c_str());
+	if (file.is_open())
+		file.close();
 
+	file.open(path.c_str());
 	if (file.is_open())
 		return true;
 	return false;
@@ -34,9 +36,9 @@ string Parser::readStr()
 	return s;
 }
 
-void Parser::write(const string &txt, char split)
+void Parser::write(const string &txt)
 {
-	file << txt << split;
+	file << txt;
 }
 
 void Parser::write(double x, char split)

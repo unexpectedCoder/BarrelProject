@@ -31,7 +31,7 @@ void Solver::fillAnalogs(const string &path)
 	Parser p(path);
 	for (Analogs::iterator itr = analogs.begin(); itr != analogs.end(); itr++)
 	{
-		p.write(itr->name, '\t');
+		p.write(itr->name + "\t");
 		p.write(itr->d, '\t');
 		p.write(itr->q, '\t');
 		p.write(itr->vd, '\n');
@@ -79,7 +79,6 @@ Analogs& Solver::calcAnalogs(const string &path)
 		analogs.push_back(a);
 	}
 
-	p.close();
 	Parser::createFile("p_CE15.txt");
 	if (p.open("p_CE15.txt"))
 		for (Analogs::iterator itr = analogs.begin(); itr != analogs.end(); itr++)
@@ -164,39 +163,39 @@ void Solver::makeTableTxt(double pm_nround, const string &path)
 	Parser::createFile(path);
 	Parser p(path);
 
-	p.write("Cq:", ' ');
+	p.write("Cq: ");
 	p.write(barr.Cq, '\t');
-	p.write("w/q:", ' ');
+	p.write("w/q: ");
 	p.write(barr.omega_q, '\t');
-	p.write("pm_kr, atm:", ' ');
+	p.write("pm_kr, atm: ");
 	p.write(barr.pm_kr, '\t');
-	p.write("p0:", ' ');
+	p.write("p0, MPa: ");
 	p.write(Consts::p0, '\n');
 
-	p.write("CE:", ' ');
+	p.write("CE: ");
 	p.write(barr.CE, '\t');
-	p.write("K:", ' ');
+	p.write("K: ");
 	p.write(Consts::K, '\t');
-	p.write("pm, atm:", ' ');
+	p.write("\tpm, atm: ");
 	p.write(pm_nround, '\t');
-	p.write("(l/d)max:", ' ');
-	p.write("???", '\n');
+	p.write("(l/d)max: ");
+	p.write("???\n");
 
-	p.write("CE15:", ' ');
+	p.write("CE15: ");
 	p.write(barr.CE15, '\t');
-	p.write("fi:", ' ');
+	p.write("fi: ");
 	p.write(barr.fi, '\t');
-	p.write("pm, Mpa:", ' ');
+	p.write("pm, Mpa: ");
 	p.write(pm_nround / Consts::g, '\t');
-	p.write("hi:", ' ');
+	p.write("hi: ");
 	p.write(barr.hi1, '\n');
 
-	p.write("ew:", ' ');
+	p.write("ew: ");
 	p.write(barr.eta_omega, '\t');
-	p.write("Nkr:", ' ');
+	p.write("Nkr: ");
 	p.write(Consts::Nkr, '\t');
-	p.write("pm_r, MPa:", ' ');
+	p.write("pm_r, MPa: ");
 	p.write(barr.pm * 1e-6, '\t');
-	p.write("ns:", ' ');
+	p.write("\tns: ");
 	p.write(barr.ns, '\n');
 }
