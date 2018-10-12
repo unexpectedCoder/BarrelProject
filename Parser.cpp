@@ -2,12 +2,36 @@
 
 using namespace std;
 
-bool Parser::open(const string &path)
+Parser::Parser(const string &path, char mode)
+{
+	switch (mode)
+	{
+	case 'w': file.open(path.c_str(), ios_base::out);
+		break;
+	case 'r': file.open(path.c_str(), ios_base::in);
+		break;
+	case 'a': file.open(path.c_str(), ios_base::app);
+		break;
+	default: throw "Error: incorrect opening mode!";
+	}
+}
+
+bool Parser::open(const string &path, char mode)
 {
 	if (file.is_open())
 		file.close();
 
-	file.open(path.c_str());
+	switch (mode)
+	{
+	case 'w': file.open(path.c_str(), ios_base::out);
+		break;
+	case 'r': file.open(path.c_str(), ios_base::in);
+		break;
+	case 'a': file.open(path.c_str(), ios_base::app);
+		break;
+	default: throw "Error: incorrect opening mode!";
+	}
+
 	if (file.is_open())
 		return true;
 	return false;
@@ -36,6 +60,14 @@ string Parser::readStr()
 	return s;
 }
 
+Barrel& Parser::readBarrel()
+{
+	file >> barr.Cq >> barr.CE >> barr.CE15 >> barr.eta_omega >> barr.omega_q >>
+		barr.pm_kr >> barr.pm >> barr.hi1 >>  barr.ns;
+
+	return barr;
+}
+
 void Parser::write(const string &txt)
 {
 	file << txt;
@@ -44,6 +76,12 @@ void Parser::write(const string &txt)
 void Parser::write(double x, char split)
 {
 	file << x << split;
+}
+
+void Parser::writeBarrel(const Barrel &barr)
+{
+	file << barr.Cq << '\n' << barr.CE << '\n' << barr.CE15 << '\n' << barr.eta_omega << '\n' << barr.omega_q << '\n' <<
+		barr.pm_kr << '\n' << barr.pm << '\n' << barr.hi1 << '\n' << barr.ns;
 }
 
 bool Parser::isEnd() const

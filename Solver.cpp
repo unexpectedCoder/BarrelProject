@@ -28,7 +28,7 @@ void Solver::fillAnalogs(const string &path)
 
 	// Запись в файл
 	Parser::createFile(path);
-	Parser p(path);
+	Parser p(path, 'w');
 	for (Analogs::iterator itr = analogs.begin(); itr != analogs.end(); itr++)
 	{
 		p.write(itr->name + "\t");
@@ -40,7 +40,7 @@ void Solver::fillAnalogs(const string &path)
 
 Analogs& Solver::calcAnalogs(const string &path)
 {
-	Parser p(path);
+	Parser p(path, 'r');
 	Analog a;
 	double CE;
 	char ch;
@@ -80,7 +80,7 @@ Analogs& Solver::calcAnalogs(const string &path)
 	}
 
 	Parser::createFile("p_CE15.txt");
-	if (p.open("p_CE15.txt"))
+	if (p.open("p_CE15.txt", 'w'))
 		for (Analogs::iterator itr = analogs.begin(); itr != analogs.end(); itr++)
 		{
 			p.write(itr->CE15, '\t');
@@ -90,8 +90,11 @@ Analogs& Solver::calcAnalogs(const string &path)
 	return analogs;
 }
 
-Barrel& Solver::calcBarrelPressure(const string &path)
+void Solver::calcBarrelPressure(const string &path)
 {
+	cout << "\n\tSearching the max pressure pm for your own sample:\n";
+
+	Barrel barr;
 	double CE = barr.CE;		// Буфер для хранения CE, чтобы можно было рекурсивно искать pm
 	char ch;
 	do
@@ -103,12 +106,12 @@ Barrel& Solver::calcBarrelPressure(const string &path)
 		barr.fi = Consts::K + 1.0 / 3.0 * barr.omega_q;
 		barr.pm = barr.pm_kr * barr.fi * Consts::Nkr / (Consts::fi1 + 0.5 * barr.omega_q) * 1.2;
 
-		cout << "\t CE15 = " << barr.CE15 << ", pm = " << barr.pm << endl;
+		cout << "\tNow it has\n";
+		cout << "\tCE15 = " << barr.CE15 << ", pm = " << barr.pm << endl;
 		cout << "\tClarify the solution? (+/-): ";
 		cin >> ch;
 		if (ch == '+') CE = barr.CE15;
 	} while (ch == '+');
-
 	double pm_nround = barr.pm;				// Хранит неокругленное значение pm
 	barr.pm /= Consts::g / 1e6;				// Перевод в Па
 
@@ -122,46 +125,51 @@ Barrel& Solver::calcBarrelPressure(const string &path)
 		(1 - Consts::alpha_k * Consts::delta) / Consts::delta;
 
 	// Запись в файл в виде таблички
-	makeTableTxt(pm_nround, path);
+	makeTableTxt(barr, pm_nround, path);
+	// Добавление в файл p_CE15.txt
+	Parser p("p_CE15.txt", 'a');
+	p.write(barr.CE15, '\t');
+	p.write(barr.pm * 1e-6 * Consts::g, '\n');
 
-	return barr;
+	Parser::createFile("barrel_src.txt");
+	p.open("barrel_src.txt", 'w');
+	p.writeBarrel(barr);
 }
 
-Chuev Solver::linInterp(double CE, const string &path_chuev)
+Barrels& Solver::solveInvProblem()
 {
-	Parser par(path_chuev.c_str());
-	double CE1, CE2, p1, p2, eta1, eta2;
+	// calcBarrelPressure();									// Поиск pm для собственного образца
+	Parser par("barrel_src.txt", 'r');
+	Barrel barr = par.readBarrel();
+	fillDelta();															// Инициализация массива плотностей заряжания
 
-	while (!par.isEnd())
+	double a, b;
+	cout << "\tSet the search range for B*:\n";
+	cout << "\t - left: "; cin >> a;
+	cout << "\t - right: "; cin >> b;
+
+	Parser::createFile("B(Delta).txt");
+	par.open("B(Delta).txt", 'w');
+	for (vector<double>::iterator itr = Delta.begin(); itr != Delta.end(); itr++)
 	{
-		CE1 = par.readNext();
-		p1 = par.readNext();
-		eta1 = par.readNext();
+		barr.Delta = *itr;
+		barr.calcB(a, b);
 
-		if (CE - CE1 < 100)
-		{
-			CE2 = par.readNext();
-			p2 = par.readNext();
-			eta2 = par.readNext();
+		par.write(barr.Delta, '\t');
+		par.write(barr.B, '\n');
 
-			break;
-		}
+		barrs.push_back(barr);
 	}
 
-	return Chuev(CE,
-		p1 + (CE - CE1)/(CE2 - CE1) * (p2 - p1),
-		eta1 + (CE - CE1) / (CE2 - CE1) * (eta2 - eta1));
+	return barrs;
 }
 
-double Solver::calcCE15(double cq, double ce, double eta)
-{
-	return 0.5 * 15.0 / cq * (ce - 3.0 * eta * cq + sqrt(pow(ce - 3.0 * eta * cq, 2.0) + 4.0 / 5.0 * ce * eta * pow(cq, 2.0)));
-}
-
-void Solver::makeTableTxt(double pm_nround, const string &path)
+////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////// Вспомогательные private-функции ///////////////////////////////////
+void Solver::makeTableTxt(const Barrel &barr, double pm_nround, const string &path)
 {
 	Parser::createFile(path);
-	Parser p(path);
+	Parser p(path, 'w');
 
 	p.write("Cq: ");
 	p.write(barr.Cq, '\t');
@@ -198,4 +206,50 @@ void Solver::makeTableTxt(double pm_nround, const string &path)
 	p.write(barr.pm * 1e-6, '\t');
 	p.write("\tns: ");
 	p.write(barr.ns, '\n');
+}
+
+Chuev Solver::linInterp(double CE, const string &path)
+{
+	Parser par(path, 'r');
+	double CE1, CE2, p1, p2, eta1, eta2;
+
+	while (!par.isEnd())
+	{
+		CE1 = par.readNext();
+		p1 = par.readNext();
+		eta1 = par.readNext();
+
+		if (CE - CE1 < 100)
+		{
+			CE2 = par.readNext();
+			p2 = par.readNext();
+			eta2 = par.readNext();
+
+			break;
+		}
+	}
+
+	return Chuev(CE,
+		p1 + (CE - CE1) / (CE2 - CE1) * (p2 - p1),
+		eta1 + (CE - CE1) / (CE2 - CE1) * (eta2 - eta1));
+}
+
+double Solver::calcCE15(double cq, double ce, double eta)
+{
+	return 0.5 * 15.0 / cq * (ce - 3.0 * eta * cq + sqrt(pow(ce - 3.0 * eta * cq, 2.0) + 4.0 / 5.0 * ce * eta * pow(cq, 2.0)));
+}
+
+void Solver::fillDelta()
+{
+	double st_delta, end_delta, step;
+	cout << "\tSet the loading density:\n";
+	cout << "\t - start delta, kg/m^3: "; cin >> st_delta;
+	cout << "\t - end delta, kg/m^3: "; cin >> end_delta;
+	cout << "\t - step, kg/m^3: "; cin >> step;
+
+	while (st_delta < end_delta + 0.5 * step)
+	{
+		Delta.push_back(st_delta);
+		st_delta += step;
+	}
 }
