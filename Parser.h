@@ -25,6 +25,7 @@ public:
 	std::string readStr();
 	Barrel& readBarrel();
 	void write(const std::string &txt);
+	void write(const std::string &txt, double x, char split = '\n');
 	void write(double x, char split);
 	void writeBarrel(const Barrel &barr);
 

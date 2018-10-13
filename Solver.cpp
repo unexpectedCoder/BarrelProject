@@ -6,6 +6,51 @@
 
 using namespace std;
 
+void Solver::makeTest()
+{
+	Barrel barr(0.122, 21.76, 690, 3e7, 1.04);
+	barr.pm = 240e6;
+	barr.calcForTest(1.25);
+
+	Parser::createFile("test.txt");
+	Parser par("test.txt", 'w');
+
+	par.write("pi_m* = ", barr.pm / barr.p0);
+	par.write("p_mid = ", barr.p_mid * 1e-6);
+	par.write("hi1 = ", barr.hi1);
+	par.write("Delta = ", barr.Delta);
+	par.write("psi0 = ", barr.psi0);
+	par.write("sigma0 = ", barr.sigma0);
+	par.write("z0 = ", barr.z0);
+	par.write("K1 = ", barr.K1);
+	par.write("B = ", barr.B);
+	par.write("B1 = ", barr.B1);
+	par.write("gamma1 = ", barr.gamma1);
+	par.write("alpha1 = ", barr.alpha1);
+	par.write("beta1 = ", barr.beta1);
+	par.write("beta2 = ", barr.beta2);
+	par.write("beta_m = ", barr.beta_m);
+	par.write("beta_m1 = ", barr.beta_m_1);
+	par.write("beta_m2 = ", barr.beta_m_2);
+	par.write("fi_m = ", barr.fi_m);
+	par.write("pi_m = ", barr.pi_m);
+
+	par.write("beta_k = ", barr.beta_k);
+	par.write("beta_k1 = ", barr.beta_k1);
+	par.write("beta_k2 = ", barr.beta_k2);
+	par.write("fi_k = ", barr.fi_k);
+	par.write("Lambda_K = ", barr.Lambda_K);
+	par.write("r_K = ", barr.r_K);
+
+	par.write("Lambda_D = ", barr.Lambda_D);
+	par.write("r_D = ", barr.r_D);
+	par.write("omega = ", barr.omega);
+	par.write("W0 = ", barr.W0);
+	par.write("L0 = ", barr.L0);
+	par.write("LD = ", barr.LD);
+	par.write("Ik = ", barr.Ik * 1e-6);
+}
+
 void Solver::fillAnalogs(const string &path)
 {
 	Analog a;
@@ -138,10 +183,11 @@ void Solver::calcBarrelPressure(const string &path)
 
 Barrels& Solver::solveInvProblem()
 {
-	// calcBarrelPressure();									// Поиск pm для собственного образца
 	Parser par("barrel_src.txt", 'r');
 	Barrel barr = par.readBarrel();
-	fillDelta();															// Инициализация массива плотностей заряжания
+
+	fillData("Set the loading density (Delta), kg/m^3:", Delta);
+	fillData("Set the dimesionless coordinate of the end of burning (eta_K):", eta_K);
 
 	double a, b;
 	cout << "\tSet the search range for B*:\n";
@@ -154,6 +200,7 @@ Barrels& Solver::solveInvProblem()
 	{
 		barr.Delta = *itr;
 		barr.calcB(a, b);
+		barr.calcLambdaK();
 
 		par.write(barr.Delta, '\t');
 		par.write(barr.B, '\n');
@@ -178,7 +225,7 @@ void Solver::makeTableTxt(const Barrel &barr, double pm_nround, const string &pa
 	p.write("pm_kr, atm: ");
 	p.write(barr.pm_kr, '\t');
 	p.write("p0, MPa: ");
-	p.write(Consts::p0, '\n');
+	p.write(barr.p0, '\n');
 
 	p.write("CE: ");
 	p.write(barr.CE, '\t');
@@ -239,17 +286,19 @@ double Solver::calcCE15(double cq, double ce, double eta)
 	return 0.5 * 15.0 / cq * (ce - 3.0 * eta * cq + sqrt(pow(ce - 3.0 * eta * cq, 2.0) + 4.0 / 5.0 * ce * eta * pow(cq, 2.0)));
 }
 
-void Solver::fillDelta()
+void Solver::fillData(const string &head_txt, vector<double> &data)
 {
-	double st_delta, end_delta, step;
-	cout << "\tSet the loading density:\n";
-	cout << "\t - start delta, kg/m^3: "; cin >> st_delta;
-	cout << "\t - end delta, kg/m^3: "; cin >> end_delta;
-	cout << "\t - step, kg/m^3: "; cin >> step;
+	if (!data.empty()) data.clear();
 
-	while (st_delta < end_delta + 0.5 * step)
+	double start, end, step;
+	cout << '\t' << head_txt << '\n';
+	cout << "\t - from: "; cin >> start;
+	cout << "\t - to:  "; cin >> end;
+	cout << "\t - step: "; cin >> step;
+
+	while (start < end + 0.5 * step)
 	{
-		Delta.push_back(st_delta);
-		st_delta += step;
+		data.push_back(start);
+		start += step;
 	}
 }

@@ -73,6 +73,11 @@ void Parser::write(const string &txt)
 	file << txt;
 }
 
+void Parser::write(const string &txt, double x, char split)
+{
+	file << txt << x << split;
+}
+
 void Parser::write(double x, char split)
 {
 	file << x << split;

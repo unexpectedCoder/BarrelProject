@@ -8,9 +8,16 @@ int main()
 {
 	cout << "\t\t___*** INTERNAL BALLISTICS ***___\n\n\tBMSTU\n\t2018\n\n";
 
+	char choice;
+
+	Solver test;
+	cout << "Make test solution? (+/-): ";
+	cin >> choice;
+	if (choice == '+')
+		test.makeTest();
+
 	Solver sol;
 	Chuev chuev;
-	char choice;
 
 	// Заполнение аналогов
 	cout << "Fill analogs data? (+/-): ";
@@ -35,7 +42,6 @@ int main()
 	cin >> choice;
 	if (choice == '+')
 		sol.solveInvProblem();
-		
 
 	cout << endl;
 	system("pause");
