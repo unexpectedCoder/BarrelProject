@@ -7,10 +7,10 @@
 #include <iostream>
 
 const double eps = 1e-4;
+const double pi = 3.141592654;
 
 namespace Consts {
 	// Общие константы для решения ОЗВБ
-	const double pi = 3.141592654;
 	const double g = 9.80655;
 	const double fi1 = 1.02;
 	const double K = 1.03;
@@ -97,7 +97,7 @@ struct Barrel
 
 	double eta_K;
 	double Lambda_D;
-	double r_D;
+	double r_D, r_Dmin;
 	double omega;
 	double W0;
 	double L0;
@@ -109,6 +109,7 @@ struct Barrel
 	{
 		Cq = q / pow(d * 10, 3.0);
 		CE = q * pow(vd, 2.0) / (2e3 * Consts::g * pow(d, 3.0)) * 1e-3;
+		r_Dmin = 1.0 / 6.0 * pow(vd, 2.0) / (Consts::f / (Consts::k - 1.0));
 	}
 
 	void calcForTest(double _B)
@@ -141,11 +142,13 @@ struct Barrel
 		pi_m = (1 - beta_m_1) * (1 - beta_m_2) * pow(fi_m, -1.0 / (Consts::k - 1.0));
 
 		calcLambdaK();
-		calcOtherThings();
+		calcForEtaK();
 	}
 
 	void calcB(double a, double b)
 	{
+		p_mid = 0.5 * pm;
+
 		psi0 = (1 / Delta - 1 / Consts::delta) / (Consts::f / p0 - (1 - Consts::alpha_k * Consts::delta) / Consts::delta);
 		sigma0 = sqrt(1 + 4.0 * Consts::lambda / Consts::kapa * psi0);
 		z0 = 2 * psi0 / (Consts::kapa * (1 + sigma0));
@@ -198,14 +201,14 @@ struct Barrel
 		r_K = 0.5 * (Consts::k - 1.0) * B * pow(1.0 - z0, 2.0);
 	}
 
-	void calcOtherThings()
+	void calcForEtaK()
 	{
 		Lambda_D = Lambda_K / eta_K;
 		r_D = hi1 - (hi1 - r_K) * pow((1.0 - Consts::alpha_k * Delta + Lambda_K) / (1.0 - Consts::alpha_k * Delta + Lambda_D), Consts::k - 1.0);
 
 		omega = q * Consts::K / (2 * Consts::f / (Consts::k - 1.0) * r_D / pow(vd, 2.0) - 1.0 / 3.0);
 		W0 = omega / Delta;
-		double S = 0.25 * Consts::pi * pow(d, 2.0) * ns;
+		double S = 0.25 * pi * pow(d, 2.0) * ns;
 		L0 = W0 / S;
 		LD = Lambda_D * L0;
 		fi = Consts::K + 1.0 / 3.0 * omega / q;

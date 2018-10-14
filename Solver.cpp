@@ -1,10 +1,13 @@
 #include "Solver.h"
 #include "Parser.h"
 
+#include <cstdlib>
 #include <iostream>
 #include <math.h>
 
 using namespace std;
+
+int Solver::fcounter = 0;
 
 void Solver::makeTest()
 {
@@ -12,8 +15,8 @@ void Solver::makeTest()
 	barr.pm = 240e6;
 	barr.calcForTest(1.25);
 
-	Parser::createFile("test.txt");
-	Parser par("test.txt", 'w');
+	Parser::createFile("files/test.txt");
+	Parser par("files/test.txt", 'w');
 
 	par.write("pi_m* = ", barr.pm / barr.p0);
 	par.write("p_mid = ", barr.p_mid * 1e-6);
@@ -124,8 +127,8 @@ Analogs& Solver::calcAnalogs(const string &path)
 		analogs.push_back(a);
 	}
 
-	Parser::createFile("p_CE15.txt");
-	if (p.open("p_CE15.txt", 'w'))
+	Parser::createFile("files/p_CE15.txt");
+	if (p.open("files/p_CE15.txt", 'w'))
 		for (Analogs::iterator itr = analogs.begin(); itr != analogs.end(); itr++)
 		{
 			p.write(itr->CE15, '\t');
@@ -172,18 +175,18 @@ void Solver::calcBarrelPressure(const string &path)
 	// Запись в файл в виде таблички
 	makeTableTxt(barr, pm_nround, path);
 	// Добавление в файл p_CE15.txt
-	Parser p("p_CE15.txt", 'a');
+	Parser p("files/p_CE15.txt", 'a');
 	p.write(barr.CE15, '\t');
 	p.write(barr.pm * 1e-6 * Consts::g, '\n');
 
-	Parser::createFile("barrel_src.txt");
-	p.open("barrel_src.txt", 'w');
+	Parser::createFile("files/barrel_src.txt");
+	p.open("files/barrel_src.txt", 'w');
 	p.writeBarrel(barr);
 }
 
 Barrels& Solver::solveInvProblem()
 {
-	Parser par("barrel_src.txt", 'r');
+	Parser par("files/barrel_src.txt", 'r');
 	Barrel barr = par.readBarrel();
 
 	fillData("Set the loading density (Delta), kg/m^3:", Delta);
@@ -194,18 +197,29 @@ Barrels& Solver::solveInvProblem()
 	cout << "\t - left: "; cin >> a;
 	cout << "\t - right: "; cin >> b;
 
-	Parser::createFile("B(Delta).txt");
-	par.open("B(Delta).txt", 'w');
-	for (vector<double>::iterator itr = Delta.begin(); itr != Delta.end(); itr++)
+	Parser::createFile("files/B(Delta).txt");
+	par.open("files/B(Delta).txt", 'w');
+
+	for (vector<double>::iterator itr1 = Delta.begin(); itr1 != Delta.end(); itr1++)
 	{
-		barr.Delta = *itr;
+		barr.Delta = *itr1;
 		barr.calcB(a, b);
 		barr.calcLambdaK();
 
+		for (vector<double>::iterator itr2 = eta_K.begin(); itr2 != eta_K.end(); itr2++)
+		{
+			barr.eta_K = *itr2;
+			barr.calcForEtaK();
+
+			if (barr.r_D > barr.r_Dmin && (barr.Lambda_D > 3 && barr.Lambda_D < 10))
+			{
+				barrs.push_back(barr);
+				writeBarrelToFile(barr);
+			}
+		}
+
 		par.write(barr.Delta, '\t');
 		par.write(barr.B, '\n');
-
-		barrs.push_back(barr);
 	}
 
 	return barrs;
@@ -301,4 +315,60 @@ void Solver::fillData(const string &head_txt, vector<double> &data)
 		data.push_back(start);
 		start += step;
 	}
+}
+
+void Solver::writeBarrelToFile(const Barrel &barr)
+{
+	int lim = 99999;
+	char buf[6];
+	string path = "barrels/barrel_";
+
+	fcounter++;
+	if (fcounter > lim)
+		throw "Runtime error in <writeBarrelsToFile()> func!";
+	_itoa_s(fcounter, buf, 10);
+
+	path += buf;
+	path += ".txt";
+
+	Parser::createFile(path);
+	Parser par(path, 'w');
+
+	par.write("Delta = ", barr.Delta);
+	par.write("eta_K = ", barr.eta_K);
+	par.write("\n");
+
+	par.write("pi_m* = ", barr.pm / barr.p0);
+	par.write("p_mid = ", barr.p_mid * 1e-6);
+	par.write("hi1 = ", barr.hi1);
+	par.write("psi0 = ", barr.psi0);
+	par.write("sigma0 = ", barr.sigma0);
+	par.write("z0 = ", barr.z0);
+	par.write("K1 = ", barr.K1);
+	par.write("B = ", barr.B);
+	par.write("B1 = ", barr.B1);
+	par.write("gamma1 = ", barr.gamma1);
+	par.write("alpha1 = ", barr.alpha1);
+	par.write("beta1 = ", barr.beta1);
+	par.write("beta2 = ", barr.beta2);
+	par.write("beta_m = ", barr.beta_m);
+	par.write("beta_m1 = ", barr.beta_m_1);
+	par.write("beta_m2 = ", barr.beta_m_2);
+	par.write("fi_m = ", barr.fi_m);
+	par.write("pi_m = ", barr.pi_m);
+
+	par.write("beta_k = ", barr.beta_k);
+	par.write("beta_k1 = ", barr.beta_k1);
+	par.write("beta_k2 = ", barr.beta_k2);
+	par.write("fi_k = ", barr.fi_k);
+	par.write("Lambda_K = ", barr.Lambda_K);
+	par.write("r_K = ", barr.r_K);
+
+	par.write("Lambda_D = ", barr.Lambda_D);
+	par.write("r_D = ", barr.r_D);
+	par.write("omega = ", barr.omega);
+	par.write("W0 = ", barr.W0);
+	par.write("L0 = ", barr.L0);
+	par.write("LD = ", barr.LD);
+	par.write("Ik = ", barr.Ik * 1e-6);
 }
