@@ -17,7 +17,6 @@ private:
 
 	static int fcounter;
 
-	Chuev linInterp(double x, const std::string &path = "files/chuev.txt");
 	void makeTableTxt(const Barrel &barr, double pm_nround, const std::string &path);
 	void fillData(const std::string &txt, std::vector<double> &data);
 	void writeBarrelToFile(const Barrel &barr);
@@ -29,7 +28,7 @@ public:
 	void makeTest();
 	void fillAnalogs(const std::string &path = "files/analogs.txt");
 	Analogs& calcAnalogs(const std::string &path = "files/analogs.txt");
-	void calcBarrelPressure(const std::string &path = "files/barrel_pressure.txt");
+	void calcBarrelPressure(const std::string &path = "files/barrel_table.txt");
 	Barrels& solveInvProblem();
 
 	static double calcCE15(double cq, double ce, double eta);

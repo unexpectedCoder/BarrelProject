@@ -17,7 +17,6 @@ int main()
 		test.makeTest();
 
 	Solver sol;
-	Chuev chuev;
 
 	// Заполнение аналогов
 	cout << "Fill analogs data? (+/-): ";
