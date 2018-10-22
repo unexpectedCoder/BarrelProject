@@ -14,7 +14,6 @@ namespace Consts {
 	// Общие константы для решения ОЗВБ
 	const double g = 9.80655;
 	const double fi1 = 1.02;
-	const double K = 1.03;
 	const double k = 1.25;
 	const double Nkr = 1.23;
 	const double f = 1e6;
@@ -23,6 +22,8 @@ namespace Consts {
 	const double kapa = 1;
 	const double lambda = 0;
 	const double p_flash = 1e6;
+	// Для критерия Слухоцкого
+	const double C = 1e6;
 }
 
 struct Analog
@@ -32,8 +33,17 @@ struct Analog
 	double q;
 	double vd;
 
+	double Cq, CE;
 	double CE15;
+	double eta_omega;
 	double pm;
+
+	Analog(const std::string &_name, double _d, double _q, double _vd) :
+		name(_name), d(_d), q(_q), vd(_vd)
+	{
+		Cq = q / pow(d * 10, 3.0);
+		CE = q * pow(vd, 2.0) / (2e3 * Consts::g * pow(d * 10.0, 3.0));
+	}
 };
 typedef std::vector<Analog> Analogs;
 
@@ -41,23 +51,29 @@ struct Chuev
 {
 	double pm_kr;
 	double eta_omega;
+	double hi;
 
 	Chuev(double CE)
 	{
-		double CE1, CE2, p1, p2, eta1, eta2;
-		std::fstream file("files/chuev.txt", std::ios_base::in);
+		double CE1, CE2;
+		double p1, p2;
+		double eta1, eta2;
+		double hi1, hi2;
 
+		std::fstream file("files/chuev.txt", std::ios_base::in);
 		while (!file.eof())
 		{
 			file >> CE1;
 			file >> p1;
 			file >> eta1;
+			file >> hi1;
 
 			if (CE - CE1 < 100)
 			{
 				file >> CE2;
 				file >> p2;
 				file >> eta2;
+				file >> hi2;
 
 				break;
 			}
@@ -65,15 +81,28 @@ struct Chuev
 
 		pm_kr = p1 + (CE - CE1) / (CE2 - CE1) * (p2 - p1);
 		eta_omega = eta1 + (CE - CE1) / (CE2 - CE1) * (eta2 - eta1);
+		hi = hi1 + (CE - CE1) / (CE2 - CE1) * (hi2 - hi1);
 	}
+};
+
+struct StartData
+{
+	double d;
+	double q;
+	double vd;
+
+	double p0;
+	double K;
+	double ns;
+
+	StartData(double _d = 0.1, double _q = 4.35, double _vd = 1600, double _p0 = 1e7, double _K = 1.03, double _ns = 1.0) :
+		d(_d), q(_q), vd(_vd), p0(_p0), K(_K), ns(_ns) {}
 };
 
 struct Barrel
 {
 	// Исходные данные
-	double d;
-	double q;
-	double vd;
+	double d, q, vd;
 	// Рассчитываемые величины
 	double Cq;
 	double CE;
@@ -91,7 +120,7 @@ struct Barrel
 	double psi0;
 	double sigma0;
 	double z0;
-	double K1;
+	double K, K1;
 	double B, B1;
 	double gamma1;
 	double alpha1;
@@ -115,8 +144,9 @@ struct Barrel
 	double LD;
 	double Ik;
 
-	Barrel(double _d = 0.1, double _q = 4.35, double _vd = 1600, double _p0 = 1e7, double _ns = 1.0) :
-		d(_d), q(_q), vd(_vd), p0(_p0), ns(_ns)
+	double Z_Sluh;
+
+	Barrel(const StartData &data = StartData()) : d(data.d), q(data.q), vd(data.vd), p0(data.p0), K(data.K), ns(data.ns)
 	{
 		Cq = q / pow(d * 10.0, 3.0);
 		CE = q * pow(vd, 2.0) / (2e3 * Consts::g * pow(d * 10.0, 3.0));
@@ -127,6 +157,7 @@ struct Barrel
 	{
 		B = _B;
 		Delta = 500;
+		pm = 240e6;
 		p_mid = 0.5 * pm;
 		eta_K = 0.5;
 
@@ -191,7 +222,7 @@ struct Barrel
 
 			pi_m = (1 - beta_m_1) * (1 - beta_m_2) * pow(fi_m, -1.0 / (Consts::k - 1.0));
 
-			if (fabs(pi_m - pi_m_star) < eps) break;
+			if (fabs(pi_m - pi_m_star) < eps) break;			// Условие выхода из цикла
 
 			if (pi_m > pi_m_star) a = B;
 			else b = B;
@@ -217,13 +248,17 @@ struct Barrel
 		Lambda_D = Lambda_K / eta_K;
 		r_D = hi1 - (hi1 - r_K) * pow((1.0 - Consts::alpha_k * Delta + Lambda_K) / (1.0 - Consts::alpha_k * Delta + Lambda_D), Consts::k - 1.0);
 
-		omega = q * Consts::K / (2 * Consts::f / (Consts::k - 1.0) * r_D / pow(vd, 2.0) - 1.0 / 3.0);
+		omega = q * K / (2 * Consts::f / (Consts::k - 1.0) * r_D / pow(vd, 2.0) - 1.0 / 3.0);
 		W0 = omega / Delta;
 		double S = 0.25 * pi * pow(d, 2.0) * ns;
 		L0 = W0 / S;
 		LD = Lambda_D * L0;
-		fi = Consts::K + 1.0 / 3.0 * omega / q;
+		fi = K + 1.0 / 3.0 * omega / q;
 		Ik = sqrt(Consts::f * omega * fi * q * B) / S;
+	}
+
+	void calcZSluh(double v1_vd) {
+		Z_Sluh = Consts::C * sqrt(1.0 / Lambda_D + 1.0) / (pow(omega / q, 1.5) * pow(LD / d, 4.0) * v1_vd);
 	}
 };
 typedef std::vector<Barrel> Barrels;

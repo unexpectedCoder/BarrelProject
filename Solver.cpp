@@ -5,20 +5,17 @@
 #include <iostream>
 #include <math.h>
 
-#define NEW_BARR_K 1.2
-
 using namespace std;
 
 int Solver::fcounter = 0;
 
 void Solver::makeTest()
 {
-	Barrel barr(0.122, 21.76, 690, 3e7, 1.04);
-	barr.pm = 240e6;
+	Barrel barr(StartData(0.122, 21.76, 690, 3e7, 1.05, 1.04));
 	barr.calcForTest(1.25);
 
-	Parser::createFile("files/test.txt");
-	Parser par("files/test.txt", 'w');
+	Parser::createFile(TEST_PATH);
+	Parser par(TEST_PATH, 'w');
 
 	par.write("pi_m* = ", barr.pm / barr.p0);
 	par.write("p_mid = ", barr.p_mid * 1e-6);
@@ -58,22 +55,25 @@ void Solver::makeTest()
 
 void Solver::fillAnalogs(const string &path)
 {
-	Analog a;
 	char ch;
-	cout << "\tAdd analog? (+/-): ";
+	cout << "\tДобавить аналог? (+/-): ";
 	cin >> ch;
 
 	while (ch == '+')
 	{
-		cout << "\t - name: "; cin >> a.name;
-		cout << "\t - d, mm: "; cin >> a.d;
-		cout << "\t - q, kg: "; cin >> a.q;
-		cout << "\t - Vd, mps: "; cin >> a.vd;
+		string name;
+		double d, q, vd;
 
-		analogs.push_back(a);
+		cout << "\tАналог №" << num_of_as << ":\n";
+		cout << "\t - название: "; cin >> name;
+		cout << "\t - d, мм: "; cin >> d;
+		cout << "\t - q, кг: "; cin >> q;
+		cout << "\t - Vd, м/с: "; cin >> vd;
+
+		analogs.push_back(Analog(name, d, q, vd));
 		num_of_as++;
 
-		cout << "\tAdd analog? (+/-): "; cin >> ch;
+		cout << "\tДобавить аналог? (+/-): "; cin >> ch;
 	}
 
 	// Запись в файл
@@ -91,38 +91,39 @@ void Solver::fillAnalogs(const string &path)
 Analogs& Solver::calcAnalogs(const string &path)
 {
 	Parser p(path, 'r');
-	Analog a;
 	char ch;
+
+	double K;
+	cout << "\tКоэф-т учета второстепенных работ для аналогов:\n\t K = ";
+	cin >> K;
 
 	analogs.clear();
 	while (true)
 	{
-		a.name = p.readStr();
-		a.d = p.readNext();
-		a.q = p.readNext();
-		a.vd = p.readNext();
+		string name = p.readStr();
+		double d = p.readNext() * 1e-3;
+		double q = p.readNext();
+		double vd = p.readNext();
 
 		if (p.isEnd()) break;								// Выход из цикла. При таком расположении
 																				// не произойдет работы с переменными, в которые записывается последняя (пустая)
 																				// строка, из-за чего значения будут неадекватными.
 
-		double Cq = a.q / pow(a.d * 10, 3);
-		double CE = a.q * pow(a.vd, 2) / (2e3 * Consts::g * pow(a.d * 10.0, 3.0));
-
-		a.CE15 = CE;
+		Analog a(name, d, q, vd);
+		a.CE15 = a.CE;
 		do
 		{
-			double eta = Chuev(a.CE15).eta_omega;
-			a.CE15 = calcCE15(Cq, CE, eta);
+			a.eta_omega = Chuev(a.CE15).eta_omega;
+			a.CE15 = calcCE15(a.Cq, a.CE, a.eta_omega);
 			double pm_kr = Chuev(a.CE15).pm_kr;
-			double omega = a.q * a.CE15 / (Cq * eta);
-			double fi = Consts::K + 1.0 / 3.0 * omega / a.q;
-			a.pm = pm_kr * fi * Consts::Nkr / (Consts::fi1 + 0.5 * a.q) * NEW_BARR_K;
+			double omega_q = a.CE15 / (a.Cq * a.eta_omega);
+			double fi = K + 1.0 / 3.0 * omega_q;
+			a.pm = pm_kr * fi * Consts::Nkr / (Consts::fi1 + 0.5 * omega_q) * NEW_BARR_K;
 
-			cout << "\tAnalog's p(CE_15) (in tech system) for " << a.name << ":\n" <<
+			cout << "\tp(CE_15) (в тех. системе) для " << a.name << ":\n" <<
 				"\t\tCE15 = " << a.CE15 << ", pm = " << a.pm << endl;
 			
-			cout << "\tClarify the solution? (+/-): ";
+			cout << "\tУточнить решение? (+/-): ";
 			cin >> ch;
 		} while (ch == '+');
 		cout << '\n';
@@ -130,8 +131,8 @@ Analogs& Solver::calcAnalogs(const string &path)
 		analogs.push_back(a);
 	}
 
-	Parser::createFile("files/p_CE15.txt");
-	if (p.open("files/p_CE15.txt", 'w'))
+	Parser::createFile(P_CE15_PATH);
+	if (p.open(P_CE15_PATH, 'w'))
 		for (Analogs::iterator itr = analogs.begin(); itr != analogs.end(); itr++)
 		{
 			p.write(itr->CE15, '\t');
@@ -143,7 +144,7 @@ Analogs& Solver::calcAnalogs(const string &path)
 
 void Solver::calcBarrelPressure(const string &path)
 {
-	cout << "\n\tSearching the max pressure pm for your own sample:\n";
+	cout << "\n\tПоиск макс. давления для собственного образца:\n";
 
 	Barrel barr;
 	char ch;
@@ -155,19 +156,19 @@ void Solver::calcBarrelPressure(const string &path)
 		barr.CE15 = calcCE15(barr.Cq, barr.CE, barr.eta_omega);
 		barr.pm_kr = Chuev(barr.CE15).pm_kr;
 		barr.omega_q = barr.CE15 / (barr.Cq * barr.eta_omega);
-		barr.fi = Consts::K + 1.0 / 3.0 * barr.omega_q;
+		barr.fi = barr.K + 1.0 / 3.0 * barr.omega_q;
 		barr.pm = barr.pm_kr * barr.fi * Consts::Nkr / (Consts::fi1 + 0.5 * barr.omega_q) * NEW_BARR_K;
 
-		cout << "\tNow it has\n";
-		cout << "\tCE15 = " << barr.CE15 << ", pm = " << barr.pm << endl;
-		cout << "\tClarify the solution? (+/-): ";
+		cout << "\tСейчас\n";
+		cout << "\t CE15 = " << barr.CE15 << ", pm = " << barr.pm << endl;
+		cout << "\tУточнить решение? (+/-): ";
 		cin >> ch;
 	} while (ch == '+');
 	double pm_nround = barr.pm;				// Хранит неокругленное значение pm
 	barr.pm /= Consts::g / 1e6;				// Перевод в Па
 
-	cout << "\n\tFor your own sample pm = " << barr.pm * 1e-6 << " MPa\n";
-	cout << "\t - please, enter rounded pm, MPa: pm = ";
+	cout << "\n\tДля вашего образца: pm = " << barr.pm * 1e-6 << " МПа\n";
+	cout << "\t - введите округленное значение pm, МПа: pm = ";
 	cin >> barr.pm;
 	barr.pm *= 1e6;										// Перевод в Па
 	// Расчет остальных характеристик
@@ -178,37 +179,63 @@ void Solver::calcBarrelPressure(const string &path)
 	// Запись в файл в виде таблички
 	makeTableTxt(barr, pm_nround, path);
 	// Добавление в файл p_CE15.txt
-	Parser p("files/p_CE15.txt", 'a');
+	Parser p(P_CE15_PATH, 'a');
 	p.write(barr.CE15, '\t');
 	p.write(barr.pm * 1e-6 * Consts::g, '\n');
 
-	Parser::createFile("files/barrel_log.txt");
-	p.open("files/barrel_log.txt", 'w');
+	Parser::createFile(BARR_SRC_PATH);
+	p.open(BARR_SRC_PATH, 'w');
 	p.writeBarrel(barr);
 }
 
 Barrels& Solver::solveInvProblem()
 {
-	Parser par("files/barrel_src.txt", 'r');
+	Parser par(BARR_SRC_PATH, 'r');
 	Barrel barr = par.readBarrel();
 
-	fillData("Set the loading density (Delta), kg/m^3:", Delta);
-	fillData("Set the dimesionless coordinate of the end of burning (eta_K):", eta_K);
+	fillData("Задайте плотность заряжания (Delta), кг/м^3:", Delta);
+	fillData("Задайте безразмерную координату конца горения (eta_K):", eta_K);
 
 	double a, b;
-	cout << "\tSet the search range for B*:\n";
-	cout << "\t - left: "; cin >> a;
-	cout << "\t - right: "; cin >> b;
+	cout << "\tЗадайте границы поиска параметра Дроздова B*:\n";
+	cout << "\t - слева: "; cin >> a;
+	cout << "\t - справа: "; cin >> b;
 
-	Parser::createFile("files/B(Delta).txt");
-	par.open("files/B(Delta).txt", 'w');
+	// Чтение из табл. 3.3 (Чуев)
+	par.open(CHUEV_TABLE_33_PATH, 'r');
+	double **table = new double*[ROWS];
+	for (int i = 0; i < ROWS; i++)
+	{
+		*(table + i) = new double[COLOUMS];
+		for (int j = 0; j < COLOUMS; j++)
+			table[i][j] = par.readNext();
+	}
+	// Для контрольного вывода
+	/*cout << "\nTable:\n";
+	for (int i = 0; i < ROWS; i++)
+	{
+		for (int j = 0; j < COLOUMS; j++)
+			cout << table[i][j] << '\t';
+		cout << '\n';
+	}*/
+
+	Parser::createFile(B_DELTA_PATH);
+	par.open(B_DELTA_PATH, 'w');
+	Parser::createFile(Z_SLUH_PATH);
+	Parser parsluh(Z_SLUH_PATH, 'w');
+
+	parsluh.write(0.0);
+	for (vector<double>::iterator itr = eta_K.begin(); itr != eta_K.end(); itr++)
+		parsluh.write('\t', *itr);
 
 	for (vector<double>::iterator itr1 = Delta.begin(); itr1 != Delta.end(); itr1++)
 	{
 		barr.Delta = *itr1;
+		// Поиск к-та Дроздова B* и относительной длины процесса горения Lambda_K
 		barr.calcB(a, b);
 		barr.calcLambdaK();
-
+		// Действия с 22 по 34
+		parsluh.write('\n', *itr1);
 		for (vector<double>::iterator itr2 = eta_K.begin(); itr2 != eta_K.end(); itr2++)
 		{
 			barr.eta_K = *itr2;
@@ -216,9 +243,16 @@ Barrels& Solver::solveInvProblem()
 
 			if (barr.r_D > barr.r_Dmin && (barr.Lambda_D > 3 && barr.Lambda_D < 10))
 			{
+				double hi_n = 1.0 / (1.0 / Chuev(barr.CE15).hi + 0.75 * barr.d / barr.L0);
+				barr.calcZSluh(belinearInterp(hi_n, barr.Lambda_D, table));
+
 				barrs.push_back(barr);
 				writeBarrelToFile(barr);
+
+				parsluh.write('\t', barr.Z_Sluh);
 			}
+			else
+				parsluh.write('\t', 0.0);
 		}
 
 		par.write(barr.Delta, '\t');
@@ -247,7 +281,7 @@ void Solver::makeTableTxt(const Barrel &barr, double pm_nround, const string &pa
 	p.write("CE: ");
 	p.write(barr.CE, '\t');
 	p.write("K: ");
-	p.write(Consts::K, '\t');
+	p.write(barr.K, '\t');
 	p.write("\tpm, atm: ");
 	p.write(pm_nround, '\t');
 	p.write("(l/d)max: ");
@@ -272,8 +306,7 @@ void Solver::makeTableTxt(const Barrel &barr, double pm_nround, const string &pa
 	p.write(barr.ns, '\n');
 }
 
-double Solver::calcCE15(double cq, double ce, double eta)
-{
+double Solver::calcCE15(double cq, double ce, double eta) {
 	return 0.5 * 15.0 / cq * (ce - 3.0 * eta * cq + sqrt(pow(ce - 3.0 * eta * cq, 2.0) + 4.0 / 5.0 * ce * eta * pow(cq, 2.0)));
 }
 
@@ -283,9 +316,9 @@ void Solver::fillData(const string &head_txt, vector<double> &data)
 
 	double start, end, step;
 	cout << '\t' << head_txt << '\n';
-	cout << "\t - from: "; cin >> start;
-	cout << "\t - to:  "; cin >> end;
-	cout << "\t - step: "; cin >> step;
+	cout << "\t - от: "; cin >> start;
+	cout << "\t - до: "; cin >> end;
+	cout << "\t - шаг: "; cin >> step;
 
 	while (start < end + 0.5 * step)
 	{
@@ -348,4 +381,44 @@ void Solver::writeBarrelToFile(const Barrel &barr)
 	par.write("L0 = ", barr.L0);
 	par.write("LD = ", barr.LD);
 	par.write("Ik = ", barr.Ik * 1e-6);
+}
+
+double Solver::belinearInterp(double x, double y, double **table)
+{
+	// Массив значений по оси ROWS
+	double *arrx = new double[ROWS];
+	for (int i = 0; i < ROWS; i++)
+		arrx[i] = table[i][0];
+	// Массив значений по оси COLOUMS
+	double *arry = new double[COLOUMS];
+	for (int j = 0; j < COLOUMS; j++)
+		arry[j] = table[0][j];
+
+	// Поиск индексов эл-ов, между которыми находится заданная точка...
+	// ...по оси ROWS
+	int ix, iy;
+	for (int i = 1; i < ROWS - 1; i++)
+		if (x >= arrx[i] && x <= arrx[i + 1])
+		{
+			ix = i;
+			break;
+		}
+	// ...по оси COLOUMS
+	for (int j = 1; j < COLOUMS; j++)
+		if (y - arry[j] <= 1.0)
+		{
+			iy = j;
+			break;
+		}
+
+	// Расчетная часть
+	double fQ11 = table[ix][iy];
+	double fQ21 = table[ix][iy + 1];
+	double fQ12 = table[ix + 1][iy];
+	double fQ22 = table[ix + 1][iy + 1];
+
+	double fR1 = 1.0 / (arry[iy + 1] - arry[iy]) * ((arry[iy + 1] - y) * fQ11 + (y - arry[iy]) * fQ21);
+	double fR2 = 1.0 / (arry[iy + 1] - arry[iy]) * ((arry[iy + 1] - y) * fQ12 + (y - arry[iy]) * fQ22);
+
+	return 1.0 / (arrx[ix + 1] - arrx[ix]) * ((arrx[ix + 1] - x) * fR1 + (x - arrx[ix]) * fR2);
 }

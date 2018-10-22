@@ -6,12 +6,14 @@ using namespace std;
 
 int main()
 {
-	cout << "\t\t___*** INTERNAL BALLISTICS ***___\n\n\tBMSTU\n\t2018\n\n";
+	setlocale(LC_ALL, "RUS");
+
+	cout << "\t\t___*** ВНУТРЕННЯЯ БАЛЛИСТИКА ***___\n\n\tМГТУ\n\t2018\n\n";
 
 	char choice;
 
 	Solver test;
-	cout << "Make test solution? (+/-): ";
+	cout << "Произвести тестовое решение? (+/-): ";
 	cin >> choice;
 	if (choice == '+')
 		test.makeTest();
@@ -19,25 +21,25 @@ int main()
 	Solver sol;
 
 	// Заполнение аналогов
-	cout << "Fill analogs data? (+/-): ";
+	cout << "Заполнить данные об аналогах? (+/-): ";
 	cin >> choice;
 	if (choice == '+')
 		sol.fillAnalogs();
 
 	// Расчет аналогов
-	cout << "Calculate analogs? (+/-): ";
+	cout << "Рассчитать макс. давление для аналогов? (+/-): ";
 	cin >> choice;
 	if (choice == '+')
 		sol.calcAnalogs();
 
 	// Расчет pm собственного образца
-	cout << "Calculate pm of your own sample? (+/-): ";
+	cout << "Рассчитать макс. давление собственного образца? (+/-): ";
 	cin >> choice;
 	if (choice == '+')
 		sol.calcBarrelPressure();
 
 	// Аналитическое решение ОЗВБ
-	cout << "Solve the inverse problem of internal ballistics? (+/-): ";
+	cout << "Решить ОЗВБ (аналитически)? (+/-): ";
 	cin >> choice;
 	if (choice == '+')
 		sol.solveInvProblem();

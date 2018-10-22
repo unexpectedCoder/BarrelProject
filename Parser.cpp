@@ -78,6 +78,16 @@ void Parser::write(const string &txt, double x, char split)
 	file << txt << x << split;
 }
 
+void Parser::write(double x)
+{
+	file << x;
+}
+
+void Parser::write(char split, double x)
+{
+	file << split << x;
+}
+
 void Parser::write(double x, char split)
 {
 	file << x << split;
@@ -85,9 +95,8 @@ void Parser::write(double x, char split)
 
 void Parser::writeBarrel(const Barrel &barr)
 {
-	file << "Cq = " << barr.Cq << "\nCE = " << barr.CE << "\nCE15 = " << barr.CE15 << "\nEta_omega = " << barr.eta_omega <<
-		"\nomega/q = " << barr.omega_q << "\npm_kr = " << barr.pm_kr << "\npm = " << barr.pm << "\nhi1 = " << barr.hi1 <<
-		"\nns = " << barr.ns;
+	file << barr.Cq << '\n' << barr.CE << '\n' << barr.CE15 << '\n' << barr.eta_omega << '\n' <<
+		barr.omega_q << '\n' << barr.pm_kr << '\n' << barr.pm << '\n' << barr.hi1 << '\n' << barr.ns;
 }
 
 bool Parser::isEnd() const
