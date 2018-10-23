@@ -12,37 +12,43 @@ int main()
 
 	char choice;
 
-	Solver test;
 	cout << "Произвести тестовое решение? (+/-): ";
 	cin >> choice;
 	if (choice == '+')
-		test.makeTest();
-
-	Solver sol;
-
-	// Заполнение аналогов
-	cout << "Заполнить данные об аналогах? (+/-): ";
-	cin >> choice;
-	if (choice == '+')
-		sol.fillAnalogs();
+	{
+		TestSolver *test = new TestSolver();
+		test->printInfo();
+		test->solve();
+		test->printResults();
+	}
 
 	// Расчет аналогов
-	cout << "Рассчитать макс. давление для аналогов? (+/-): ";
+	cout << "Рассчитать аналоги? (+/-): ";
 	cin >> choice;
 	if (choice == '+')
-		sol.calcAnalogs();
+	{
+		AnalogsSolver *asol = new AnalogsSolver;
+		asol->printInfo();
+		asol->solve();
+		asol->printResults();
+	}
 
-	// Расчет pm собственного образца
-	cout << "Рассчитать макс. давление собственного образца? (+/-): ";
+	cout << "Решить ОЗВБ аналитически? (+/-): ";
 	cin >> choice;
 	if (choice == '+')
-		sol.calcBarrelPressure();
+	{
+		// Расчет pm собственного образца
+		AnaliticSolver *analitic = new AnaliticSolver;
+		analitic->printInfo();
 
-	// Аналитическое решение ОЗВБ
-	cout << "Решить ОЗВБ (аналитически)? (+/-): ";
-	cin >> choice;
-	if (choice == '+')
-		sol.solveInvProblem();
+		cout << "\tРассчитать макс. давление собственного образца? (+/-): ";
+		cin >> choice;
+		if (choice == '+')
+			analitic->calcMaxPressure();
+
+		analitic->solve();
+		analitic->printResults();
+	}
 
 	cout << endl;
 	system("pause");

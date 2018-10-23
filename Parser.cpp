@@ -63,7 +63,7 @@ string Parser::readStr()
 Barrel& Parser::readBarrel()
 {
 	file >> barr.Cq >> barr.CE >> barr.CE15 >> barr.eta_omega >> barr.omega_q >>
-		barr.pm_kr >> barr.pm >> barr.hi1 >>  barr.ns;
+		barr.pm_kr >> barr.pm >> barr.hi >>  barr.ns;
 
 	return barr;
 }
@@ -96,7 +96,14 @@ void Parser::write(double x, char split)
 void Parser::writeBarrel(const Barrel &barr)
 {
 	file << barr.Cq << '\n' << barr.CE << '\n' << barr.CE15 << '\n' << barr.eta_omega << '\n' <<
-		barr.omega_q << '\n' << barr.pm_kr << '\n' << barr.pm << '\n' << barr.hi1 << '\n' << barr.ns;
+		barr.omega_q << '\n' << barr.pm_kr << '\n' << barr.pm << '\n' << barr.hi << '\n' << barr.ns;
+}
+
+bool Parser::isOpen() const
+{
+	if (file.is_open())
+		return true;
+	return false;
 }
 
 bool Parser::isEnd() const

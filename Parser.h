@@ -31,6 +31,7 @@ public:
 	void write(double x, char split);
 	void writeBarrel(const Barrel &barr);
 
+	bool isOpen() const;
 	bool isEnd() const;
 
 	static void createFile(const std::string &path);
