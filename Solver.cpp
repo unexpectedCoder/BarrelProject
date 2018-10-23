@@ -244,7 +244,7 @@ Barrels& Solver::solveInvProblem()
 			if (barr.r_D > barr.r_Dmin && (barr.Lambda_D > 3 && barr.Lambda_D < 10))
 			{
 				double hi_n = 1.0 / (1.0 / Chuev(barr.CE15).hi + 0.75 * barr.d / barr.L0);
-				barr.calcZSluh(belinearInterp(hi_n, barr.Lambda_D, table));
+				barr.calcZSluh(belinearInterp(barr.Lambda_D, hi_n, table));
 
 				barrs.push_back(barr);
 				writeBarrelToFile(barr);
@@ -385,40 +385,36 @@ void Solver::writeBarrelToFile(const Barrel &barr)
 
 double Solver::belinearInterp(double x, double y, double **table)
 {
-	// ћассив значений по оси ROWS
-	double *arrx = new double[ROWS];
-	for (int i = 0; i < ROWS; i++)
-		arrx[i] = table[i][0];
-	// ћассив значений по оси COLOUMS
-	double *arry = new double[COLOUMS];
-	for (int j = 0; j < COLOUMS; j++)
-		arry[j] = table[0][j];
-
-	// ѕоиск индексов эл-ов, между которыми находитс€ заданна€ точка...
-	// ...по оси ROWS
 	int ix, iy;
-	for (int i = 1; i < ROWS - 1; i++)
-		if (x >= arrx[i] && x <= arrx[i + 1])
+
+	/*
+	Ёлемент table[0][0] не рассматриваетс€, т.к. нужен только дл€ создани€ матрицы.
+	Ёто приводит к тому, что в цикла i начинаетс€ с 1, а не с 0.
+	*/
+	// ѕоиск индексов эл-ов, между которыми находитс€ заданна€ точка...
+	// ...по оси COLOUMS (X)
+	for (int i = 1; i < COLOUMS; i++)
+		if (x - table[0][i] <= 1.0)
 		{
 			ix = i;
 			break;
 		}
-	// ...по оси COLOUMS
-	for (int j = 1; j < COLOUMS; j++)
-		if (y - arry[j] <= 1.0)
+	// ...по оси ROWS (Y)
+	for (int i = 1; i < ROWS - 1; i++)
+		if (y >= table[i][0] && y <= table[i + 1][0])
 		{
-			iy = j;
+			iy = i;
 			break;
 		}
 
 	// –асчетна€ часть
-	double fQ11 = table[ix][iy];
-	double fQ21 = table[ix][iy + 1];
-	double fQ12 = table[ix + 1][iy];
-	double fQ22 = table[ix + 1][iy + 1];
+	double fQ11 = table[iy][ix];					// Ќетрадиционность индексов - следствие особенностей
+	double fQ21 = table[iy][ix + 1];			// хранени€ матриц в пам€ти:
+	double fQ12 = table[iy + 1][ix];			// 2ой индекс (столбцы) соответствует оси X;
+	double fQ22 = table[iy + 1][ix + 1];	// 1ый индекс (строки) - оси Y.
 
-	double fR1 = 1.0 / (arry[iy + 1] - arry[iy]) * ((arry[iy + 1] - y) * fQ11 + (y - arry[iy]) * fQ21);
-	double fR2 = 1.0 / (arry[iy + 1] - arry[iy]) * ((arry[iy + 1] - y) * fQ12 + (y - arry[iy]) * fQ22);
+	double fR1 = 1.0 / (table[0][ix + 1] - table[0][ix]) * ((table[0][ix + 1] - x) * fQ11 + (x - table[0][ix]) * fQ21);
+	double fR2 = 1.0 / (table[0][ix + 1] - table[0][ix]) * ((table[0][ix + 1] - x) * fQ12 + (x - table[0][ix]) * fQ22);
 
-	return 1.0 / (arrx[ix + 1] - arrx[ix]) * ((arrx[ix + 1] - x) * fR1 + (x - arrx[ix]) * fR2);
+	return 1.0 / (table[iy + 1][0] - table[iy][0]) * ((table[iy + 1][0] - y) * fR1 + (y - table[iy][0]) * fR2);
 }
