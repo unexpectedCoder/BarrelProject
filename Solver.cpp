@@ -8,7 +8,7 @@ using namespace std;
 
 int AnaliticSolver::file_count = 0;
 
-double Solver::belinearInterp(double x, double y, double **table)
+double Solver::bilinearInterp(double x, double y, double **table)
 {
 	int ix, iy;
 
@@ -333,7 +333,7 @@ int AnaliticSolver::solve()
 				if (with_interp)
 				{
 					double hi_n = 1.0 / (1.0 / Chuev(barr.CE15).hi + 0.75 * barr.d / barr.L0);
-					Z = barr.calcZSluh();
+					Z = barr.calcZSluh(bilinearInterp(hi_n, barr.Lambda_D, table));
 				}
 				else Z = barr.calcZSluh();
 				

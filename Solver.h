@@ -35,7 +35,7 @@ public:
 	virtual double calcCE15(double cq, double ce, double eta) {
 		return 0.5 * 15.0 / cq * (ce - 3.0 * eta * cq + sqrt(pow(ce - 3.0 * eta * cq, 2.0) + 4.0 / 5.0 * ce * eta * pow(cq, 2.0)));
 	}
-	virtual double belinearInterp(double hi_n, double Lambda_D, double **table);
+	virtual double bilinearInterp(double hi_n, double Lambda_D, double **table);
 
 	virtual ~Solver() {}
 };
