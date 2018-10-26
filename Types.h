@@ -37,9 +37,10 @@ struct Analog
 	double CE15;
 	double eta_omega;
 	double pm;
+	double l_d;
 
-	Analog(const std::string &_name, double _d, double _q, double _vd) :
-		name(_name), d(_d), q(_q), vd(_vd)
+	Analog(const std::string &_name, double _d, double _q, double _vd, double _l_d) :
+		name(_name), d(_d), q(_q), vd(_vd), l_d(_l_d)
 	{
 		Cq = q / pow(d * 10, 3.0);
 		CE = q * pow(vd, 2.0) / (2e3 * Consts::g * pow(d * 10.0, 3.0));
@@ -99,19 +100,6 @@ struct StartData
 		d(_d), q(_q), vd(_vd), p0(_p0), K(_K), ns(_ns) {}
 };
 
-struct OutputResult
-{
-	double eta_K;
-	double Lambda_D;
-	double r_D, r_Dmin;
-	double omega;
-	double W0;
-	double L0;
-	double LD;
-	double Ik;
-};
-typedef std::vector<OutputResult> OutputResults;
-
 struct Barrel
 {
 	// »сходные данные
@@ -148,41 +136,43 @@ struct Barrel
 	double Lambda_K;
 	double r_K;
 
-	OutputResult o_r;
-	OutputResults o_rs;
-
-	std::vector<double> Z_Sluh;
-
-	/*std::vector<double> vEta_K;
+	double eta_K;
 	double Lambda_D;
 	double r_D, r_Dmin;
 	double omega;
 	double W0;
 	double L0;
 	double LD;
-	double Ik;*/
+	double Ik;
+	double Z_Sluh;
 
 	Barrel(const StartData &data = StartData()) :
 		d(data.d), q(data.q), vd(data.vd), p0(data.p0), K(data.K), ns(data.ns)
 	{
 		Cq = q / pow(d * 10.0, 3.0);
 		CE = q * pow(vd, 2.0) / (2e3 * Consts::g * pow(d * 10.0, 3.0));
-		o_r.r_Dmin = 1.0 / 6.0 * pow(vd, 2.0) / (Consts::f / (Consts::k - 1.0));
+		r_Dmin = 1.0 / 6.0 * pow(vd, 2.0) / (Consts::f / (Consts::k - 1.0));
 	}
 
-	Barrel(const Barrel &barr, const StartData &data = StartData()) :
-		d(data.d), q(data.q), vd(data.vd), p0(data.p0), K(data.K), ns(data.ns)
+	Barrel(const Barrel &barr, const StartData &data) :
+		p0(data.p0), K(data.K)
 	{
+		d = barr.d;
+		q = barr.q;
+		vd = barr.vd;
+
 		Cq = barr.Cq;
 		CE = barr.CE;
 		CE15 = barr.CE15;
 		eta_omega = barr.eta_omega;
-		o_r.omega = q * barr.omega_q;
+		omega = q * barr.omega;
 		omega_q = barr.omega_q;
 		pm_kr = barr.pm_kr;
 		pm = barr.pm;
 		hi = barr.hi;
 		ns = barr.ns;
+
+		r_Dmin = 1.0 / 6.0 * pow(vd, 2.0) / (Consts::f / (Consts::k - 1.0));
 	}
 
 	void calcForTest(double _B)
@@ -219,25 +209,23 @@ struct Barrel
 		calcForEtaK(eta_K);
 	}
 
-	int calcB(double a, double b)
+	void calcB(double a, double b)
 	{
 		p_mid = 0.5 * pm;
-		hi1 = 1 - (Consts::k - 1) * p_mid / Consts::f * (1 - Consts::alpha_k * Consts::delta) / Consts::delta;
+		hi1 = 1.0 - (Consts::k - 1) * p_mid / Consts::f * (1 - Consts::alpha_k * Consts::delta) / Consts::delta;
 
-		psi0 = (1 / Delta - 1 / Consts::delta) / (Consts::f / p0 - (1 - Consts::alpha_k * Consts::delta) / Consts::delta);
+		psi0 = (1.0 / Delta - 1.0 / Consts::delta) / (Consts::f / p0 - (1.0 - Consts::alpha_k * Consts::delta) / Consts::delta);
 		sigma0 = sqrt(1 + 4.0 * Consts::lambda / Consts::kapa * psi0);
-		z0 = 2 * psi0 / (Consts::kapa * (1 + sigma0));
+		z0 = 2.0 * psi0 / (Consts::kapa * (1.0 + sigma0));
 		K1 = Consts::kapa * sigma0;
 
-		if (halfSearchB(a, b) == 1) return 1;
-		return 0;
+		halfSearchB(a, b);
 	}
 
-	int halfSearchB(double a, double b)
+	void halfSearchB(double a, double b)
 	{
 		double pi_m_star = pm / p0;
 
-		int i = 0;
 		while (true)
 		{
 			B = 0.5 * (a + b);
@@ -261,12 +249,7 @@ struct Barrel
 			
 			if (pi_m > pi_m_star) a = B;
 			else b = B;
-
-			i++;
-			if (i > 10000) return 1;
 		}
-
-		return 0;
 	}
 
 	void calcLambdaK()
@@ -283,33 +266,30 @@ struct Barrel
 		r_K = 0.5 * (Consts::k - 1.0) * B * pow(1.0 - z0, 2.0);
 	}
 
-	int calcForEtaK(double eta_K)
+	void calcForEtaK(double eta_K)
 	{
-		o_r.Lambda_D = Lambda_K / eta_K;
-		o_r.r_D = hi1 - (hi1 - r_K) * pow((1.0 - Consts::alpha_k * Delta + Lambda_K) /
-			(1.0 - Consts::alpha_k * Delta + o_r.Lambda_D), Consts::k - 1.0);
+		Lambda_D = Lambda_K / eta_K;
+		r_D = hi1 - (hi1 - r_K) * pow((1.0 - Consts::alpha_k * Delta + Lambda_K) /
+			(1.0 - Consts::alpha_k * Delta + Lambda_D), Consts::k - 1.0);
 
-		if (o_r.r_D > o_r.r_Dmin && o_r.Lambda_D >= 1.0 && o_r.Lambda_D <= 10.0)
-		{
-			o_r.omega = q * K / (2 * Consts::f / (Consts::k - 1.0) * o_r.r_D / pow(vd, 2.0) - 1.0 / 3.0);
-			o_r.W0 = o_r.omega / Delta;
-			double S = 0.25 * pi * pow(d, 2.0) * ns;
-			o_r.L0 = o_r.W0 / S;
-			o_r.LD = o_r.Lambda_D * o_r.L0;
-			fi = K + 1.0 / 3.0 * o_r.omega / q;
-			o_r.Ik = sqrt(Consts::f * o_r.omega * fi * q * B) / S;
-
-			// ¬ключение в контейнер
-			o_rs.push_back(o_r);
-
-			return 1;
-		}
-
-		return 0;
+		omega = q * K / (2 * Consts::f / (Consts::k - 1.0) * r_D / pow(vd, 2.0) - 1.0 / 3.0);
+		omega_q = omega / q;
+		W0 = omega / Delta;
+		double S = 0.25 * pi * pow(d, 2.0) * ns;
+		L0 = W0 / S;
+		LD = Lambda_D * L0;
+		fi = K + 1.0 / 3.0 * omega / q;
+		Ik = sqrt(Consts::f * omega * fi * q * B) / S;
 	}
 
-	void calcZSluh(double v1_vd) {
-		Z_Sluh.push_back(Consts::C * sqrt(1.0 / o_r.Lambda_D + 1.0) / (pow(o_r.omega / q, 1.5) * pow(o_r.LD / d, 4.0) * v1_vd));
+	double calcZSluh() {
+		Z_Sluh = Consts::C * sqrt(1.0 + Lambda_D) / (pow(omega_q, 1.5) * pow((LD + L0) / d, 4.0));
+		return Z_Sluh;
+	}
+
+	double calcZSluh(double v1_vd) {
+		Z_Sluh = Consts::C * sqrt(1.0 + 1.0 / Lambda_D) / (pow(omega_q, 1.5) * pow((LD + L0) / d, 4.0) * v1_vd);
+		return Z_Sluh;
 	}
 };
 typedef std::vector<Barrel> Barrels;

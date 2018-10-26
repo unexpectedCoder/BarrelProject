@@ -14,6 +14,7 @@
 #define COLOUMS 11
 
 #define ANALOGS_PATH "files/analogs.txt"
+#define ANALOGS_RES_PATH "files/analogs_res.txt"
 #define BARR_TABLE_PATH "files/barrel_table.txt"
 #define TEST_PATH "files/test.txt"
 #define P_CE15_PATH "files/p_CE15.txt"
@@ -21,6 +22,7 @@
 #define B_DELTA_PATH "files/B(Delta).txt"
 #define CHUEV_TABLE_33_PATH "files/chuev_table_3.3.txt"
 #define Z_SLUH_PATH "files/ZSluh.txt"
+#define RESULTS_PATH "files/results.txt"
 
 // -------- ¡¿«Œ¬€…  À¿—— -------- //
 class Solver
@@ -95,7 +97,6 @@ public:
 class AnaliticSolver : public Solver
 {
 private:
-	Barrel *barr;
 	Barrels barrs;
 	std::string status;
 	std::vector<double> Delta;
@@ -104,7 +105,7 @@ private:
 
 	void makeTableTxt(const Barrel &barr, double pm_nround, const std::string &path);
 	void fillBarrelData(const std::string &txt, std::vector<double> &data);
-	void writeBarrelToFile(const Barrel &barr);
+	void writeBarrelsToFile();
 
 public:
 	AnaliticSolver() : status("successfully") {}
