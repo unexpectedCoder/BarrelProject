@@ -6,6 +6,7 @@
 #include <vector>
 #include <math.h>
 
+#include "Parser.h"
 #include "Types.h"
 
 #define NEW_BARR_K 1.2
@@ -20,16 +21,19 @@
 #define P_CE15_PATH "files/p_CE15.txt"
 #define BARR_SRC_PATH "files/barrel_src.txt"
 #define B_DELTA_PATH "files/B(Delta).txt"
-#define CHUEV_TABLE_33_PATH "files/chuev_table_3.3.txt"
-#define Z_SLUH_PATH "files/ZSluh.txt"
-#define RESULTS_PATH "files/results.txt"
+#define CHUEV_TABLE_33_PATH "chuev_table_3.3.txt"
+#define Z_SLUH_PATH "results/ZSluh.txt"
+#define RESULTS_PATH "results/results.txt"
+#define BARR_LOG_PATH "files/barrel_log.txt"
+
+#define POWDERS_PATH "powders.xml"
 
 // -------- ¡¿«Œ¬€…  À¿—— -------- //
 class Solver
 {
 public:
 	virtual void printInfo() = 0;
-	virtual int solve() = 0;
+	virtual void solve() = 0;
 	virtual void printResults() = 0;
 
 	virtual double calcCE15(double cq, double ce, double eta) {
@@ -56,7 +60,7 @@ public:
 	void printInfo() {
 		std::cout << "\n\t<“ÂÒÚÓ‚˚È Â¯‡ÚÂÎ¸ (TestSolver)>\n";
 	}
-	int solve();
+	void solve();
 	void printResults() {
 		std::cout << "\t—“¿“”— ¬€œŒÀÕ≈Õ»ﬂ: " << status << ".\n";
 		std::cout << "\t–≈«”À‹“¿“€: ÒÏ. Ù‡ÈÎ " << TEST_PATH << ".\n\n";
@@ -82,7 +86,7 @@ public:
 	void printInfo() {
 		std::cout << "\n\t<–Â¯‡ÚÂÎ¸ ‰Îˇ ‡Ì‡ÎÓ„Ó‚ (AnalogsSolver)>\n";
 	}
-	int solve();
+	void solve();
 	void printResults() {
 		std::cout << "\t—“¿“”— ¬€œŒÀÕ≈Õ»ﬂ: " << status << ".\n";
 		std::cout << "\t–≈«”À‹“¿“€: ÒÏ. Ù‡ÈÎ " << ANALOGS_PATH << ".\n\n";
@@ -109,17 +113,93 @@ private:
 
 public:
 	AnaliticSolver() : status("successfully") {}
-	~AnaliticSolver() {}
+	~AnaliticSolver() {
+		barrs.~vector();
+		Delta.~vector();
+		eta_K.~vector();
+	}
 
 	void printInfo() {
 		std::cout << "\n\t<¿Ì‡ÎËÚË˜ÂÒÍËÈ Â¯‡ÚÂÎ¸ (AnaliticSolver)>\n";
 	}
 	void calcMaxPressure();
-	int solve();
+	void solve();
 	void printResults() {
 		std::cout << "\t—“¿“”— ¬€œŒÀÕ≈Õ»ﬂ: " << status << ".\n";
-		std::cout << "\t–≈«”À‹“¿“€: ÒÏ. Ù‡ÈÎ barrels_xxxx.txt, " <<
-			P_CE15_PATH << " Ë " << Z_SLUH_PATH << ".\n\n";
+		std::cout << "\t–≈«”À‹“¿“€: ÒÏ. ‚ Ô‡ÔÍÂ results.";
+	}
+};
+
+class DirectSolver : public Solver
+{
+private:
+	std::string status;
+	Powder pwd;
+	Powders pwds;
+	Result res;
+	Results ress;
+	Results ress_pm;
+	double *Delta, *w_q;
+	double d, q, Vd, ns, S, K;
+	double p0, pm;
+	int size_d, size_wq;
+	int key_V, key_S, key_Z;
+
+	void fillData();
+	int choosePowder();
+
+	// —ËÒÚÂÏ‡ Œƒ”
+	double dz(double p) {
+		return p / pwd.Ik * key_Z;
+	}
+	double dpsi(double z, double p) {
+		return (pwd.kappa1 * (1.0 + 2.0 * pwd.lambda1 * z) * key_S +
+			pwd.kappa2 * (1.0 + 2.0 * pwd.lambda2 * (z - 1.0)) * (1 - key_S)) * dz(p);
+	}
+	double dL(double V) {
+		return V;
+	}
+	double dV(double p, double w_q) {
+		double fi = K + 1.0 / 3.0 * w_q;
+		return p * S / (fi * q) * key_V;
+	}
+	double dW(double omega, double z, double p, double V) {
+		return (1.0 - pwd.alpha * pwd.delta) / pwd.delta * omega * dpsi(z, p) + S * V;
+	}
+	double dp(double W, double omega, double _Delta, double p, double z, double L, double V) {
+		double W0 = omega / _Delta;
+		double F0 = 4.0 * W0 / d + 2.0 * S;
+		return 1.0 / W * (pwd.f * omega * dpsi(z, p) -
+			(pwd.k - 1.0) * Consts::sigma_T * Consts::nu_T * p * (F0 + pi * d * L) / pwd.R() -
+			pwd.k * p * dW(omega, z, p, V));
+	}
+
+	void searchPmax(double dt, double delta, double wq);
+	Results::iterator minDeltaPm();
+
+public:
+	DirectSolver(double _pm = 410e6, double _d = 0.1, double _q = 4.35, double _Vd = 1600, double _K = 1.03, double _p0 = 1e7, double _ns = 1) :
+		status("successfully"), pm(_pm), d(_d), q(_q), Vd(_Vd), K(_K), p0(_p0), ns(_ns), key_V(0), key_S(1), key_Z(1)
+	{
+		pwds = Parser().readXMLPowders(POWDERS_PATH);
+		S = 0.25 * pi * d * d * ns;
+	}
+	~DirectSolver() {
+		delete[] Delta;
+		delete[] w_q;
+		pwds.~vector();
+	}
+
+	void printInfo() {
+		std::cout << "\n\t<–Â¯‡ÚÂÎ¸ ÔˇÏÓÈ Á‡‰‡˜Ë (DirectSolver)>\n";
+	}
+
+	void solve();
+	void showPowders();
+
+	void printResults() {
+		std::cout << "\t—“¿“”— ¬€œŒÀÕ≈Õ»ﬂ: " << status << ".\n";
+		std::cout << "\t–≈«”À‹“¿“€: ÒÏ. ‚ Ô‡ÔÍÂ direct_res.";
 	}
 };
 

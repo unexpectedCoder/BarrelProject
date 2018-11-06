@@ -1,12 +1,15 @@
 #include <iostream>
+#include <Windows.h>
 
 #include "Solver.h"
+#include "Types.h"
 
 using namespace std;
 
 int main()
 {
-	setlocale(LC_ALL, "RUS");
+	SetConsoleCP(1251);
+	SetConsoleOutputCP(1251);
 
 	cout << "\t\t___*** ВНУТРЕННЯЯ БАЛЛИСТИКА ***___\n\n\tМГТУ\n\t2018\n\n";
 
@@ -38,7 +41,7 @@ int main()
 	if (choice == '+')
 	{
 		// Расчет pm собственного образца
-		AnaliticSolver *analitic = new AnaliticSolver;
+		AnaliticSolver *analitic = new AnaliticSolver();
 		analitic->printInfo();
 
 		cout << "\tРассчитать макс. давление собственного образца? (+/-): ";
@@ -50,7 +53,23 @@ int main()
 		analitic->printResults();
 	}
 
-	cout << endl;
+	cout << "\n\nРешить прямую задачу перебором? (+/-): ";
+	cin >> choice;
+	if (choice == '+')
+	{
+		DirectSolver *dirsol = new DirectSolver();
+		dirsol->printInfo();
+
+		cout << "\tВывести список заданных порохов? (+/-): ";
+		cin >> choice;
+		if (choice == '+')
+			dirsol->showPowders();
+
+		dirsol->solve();
+		dirsol->printResults();
+	}
+
+	cout << endl << endl;
 	system("pause");
 	return 0;
 }

@@ -24,6 +24,9 @@ namespace Consts {
 	const double p_flash = 1e6;
 	// Для критерия Слухоцкого
 	const double C = 1e6;
+	// Для прямого перебора
+	const double sigma_T = 360;
+	const double nu_T = 0.7;
 }
 
 struct Analog
@@ -39,8 +42,8 @@ struct Analog
 	double pm;
 	double l_d;
 
-	Analog(const std::string &_name, double _d, double _q, double _vd, double _l_d) :
-		name(_name), d(_d), q(_q), vd(_vd), l_d(_l_d)
+	Analog(const std::string &_name, double _d, double _q, double _vd, double _l_d, double _pm) :
+		name(_name), d(_d), q(_q), vd(_vd), l_d(_l_d), pm(_pm)
 	{
 		Cq = q / pow(d * 10, 3.0);
 		CE = q * pow(vd, 2.0) / (2e3 * Consts::g * pow(d * 10.0, 3.0));
@@ -61,7 +64,7 @@ struct Chuev
 		double eta1, eta2;
 		double hi1, hi2;
 
-		std::fstream file("files/chuev.txt", std::ios_base::in);
+		std::fstream file("chuev.txt", std::ios_base::in);
 		while (!file.eof())
 		{
 			file >> CE1;
@@ -129,18 +132,17 @@ struct Barrel
 	double beta_m_1, beta_m_2;
 	double fi_m;
 	double pi_m;
-
 	double beta_k;
 	double beta_k1, beta_k2;
 	double fi_k;
 	double Lambda_K;
 	double r_K;
-
+	// Переменные результатов
 	double eta_K;
 	double Lambda_D;
 	double r_D, r_Dmin;
 	double omega;
-	double W0;
+	double W0, W;
 	double L0;
 	double LD;
 	double Ik;
@@ -153,7 +155,6 @@ struct Barrel
 		CE = q * pow(vd, 2.0) / (2e3 * Consts::g * pow(d * 10.0, 3.0));
 		r_Dmin = 1.0 / 6.0 * pow(vd, 2.0) / (Consts::f / (Consts::k - 1.0));
 	}
-
 	Barrel(const Barrel &barr, const StartData &data) :
 		p0(data.p0), K(data.K)
 	{
@@ -175,123 +176,141 @@ struct Barrel
 		r_Dmin = 1.0 / 6.0 * pow(vd, 2.0) / (Consts::f / (Consts::k - 1.0));
 	}
 
-	void calcForTest(double _B)
-	{
-		B = _B;
-		Delta = 500;
-		pm = 240e6;
-		p_mid = 0.5 * pm;
-		double eta_K = 0.5;
+	void calcHi1();
+	void calcForTest(double _B);
+	void calcB(double a, double b);
+	void halfSearchB(double a, double b);
+	void calcLambdaK();
+	void calcForEtaK(double eta_K);
+	double calcZSluh();
+	double calcZSluh(double v1_vd);
+};
+typedef std::vector<Barrel> Barrels;
 
-		hi1 = 1.0 - (Consts::k - 1.0) * p_mid / Consts::f * (1.0 - Consts::alpha_k * Consts::delta) / Consts::delta;
+struct Matrix
+{
+	double **data;
+	int x, y;
 
-		psi0 = (1.0 / Delta - 1.0 / Consts::delta) / (Consts::f / p0 - (1.0 - Consts::alpha_k * Consts::delta) / Consts::delta);
-		sigma0 = sqrt(1.0 + 4.0 * Consts::lambda / Consts::kapa * psi0);
-		z0 = 2.0 * psi0 / (Consts::kapa * (1.0 + sigma0));
-		K1 = Consts::kapa * sigma0;
-
-		B1 = 0.5 * (Consts::k - 1) * B - Consts::kapa * Consts::lambda * hi1;
-		gamma1 = psi0 * B1 / pow(K1, 2.0);
-		alpha1 = 2 * Consts::kapa * Consts::lambda / B1;
-		beta1 = 0.5 * hi1 + sqrt(gamma1 + 0.25 * pow(hi1, 2.0));
-		beta2 = 0.5 * hi1 - sqrt(gamma1 + 0.25 * pow(hi1, 2.0));
-
-		beta_m = (Consts::k * hi1 - 1) / (2.0 * Consts::k + alpha1);
-		beta_m_1 = beta_m / beta1;
-		beta_m_2 = beta_m / beta2;
-
-		fi_m = pow(1.0 - beta_m_2, (1.0 + alpha1 * beta2) / (beta1 - beta2) - 1.0) /
-			pow(1.0 - beta_m_1, (1.0 + alpha1 * beta1) / (beta1 - beta2) + 1.0);
-
-		pi_m = (1 - beta_m_1) * (1 - beta_m_2) * pow(fi_m, -1.0 / (Consts::k - 1.0));
-
-		calcLambdaK();
-		calcForEtaK(eta_K);
-	}
-
-	void calcB(double a, double b)
-	{
-		p_mid = 0.5 * pm;
-		hi1 = 1.0 - (Consts::k - 1) * p_mid / Consts::f * (1 - Consts::alpha_k * Consts::delta) / Consts::delta;
-
-		psi0 = (1.0 / Delta - 1.0 / Consts::delta) / (Consts::f / p0 - (1.0 - Consts::alpha_k * Consts::delta) / Consts::delta);
-		sigma0 = sqrt(1 + 4.0 * Consts::lambda / Consts::kapa * psi0);
-		z0 = 2.0 * psi0 / (Consts::kapa * (1.0 + sigma0));
-		K1 = Consts::kapa * sigma0;
-
-		halfSearchB(a, b);
-	}
-
-	void halfSearchB(double a, double b)
-	{
-		double pi_m_star = pm / p0;
-
-		while (true)
+	Matrix() : x(0), y(0) {}
+	Matrix(int _x, int _y) {
+		if (_x > 0 && _y > 0)
 		{
-			B = 0.5 * (a + b);
+			x = _x;
+			y = _y;
 
-			B1 = 0.5 * (Consts::k - 1) * B - Consts::kapa * Consts::lambda * hi1;
-			gamma1 = psi0 * B1 / pow(K1, 2.0);
-			alpha1 = 2 * Consts::kapa * Consts::lambda / B1;
-			beta1 = 0.5 * hi1 + sqrt(gamma1 + 0.25 * pow(hi1, 2.0));
-			beta2 = 0.5 * hi1 - sqrt(gamma1 + 0.25 * pow(hi1, 2.0));
+			data = new double*[x];
+			for (int i = 0; i < x; i++)
+				data[i] = new double[y];
+		}
+		else throw "Error (in struct \'Matrix\'): invalid matrix size!";
+	}
+	Matrix(double **mtrx, int _x, int _y) {
+		if (_x > 0 && _y > 0)
+		{
+			x = _x;
+			y = _y;
 
-			beta_m = (Consts::k * hi1 - 1) / (2.0 * Consts::k + alpha1);
-			beta_m_1 = beta_m / beta1;
-			beta_m_2 = beta_m / beta2;
+			data = new double*[x];
+			for (int i = 0; i < x; i++)
+			{
+				data[i] = new double[y];
+				for (int j = 0; j < y; j++)
+					data[i][j] = mtrx[i][j];
+			}
+		}
+		else throw "Error (in struct \'Matrix\'): invalid matrix size!";
+	}
+	Matrix(const Matrix &mtrx) {
+		x = mtrx.x;
+		y = mtrx.y;
 
-			fi_m = pow(1.0 - beta_m_2, (1.0 + alpha1 * beta2) / (beta1 - beta2) - 1.0) /
-				pow(1.0 - beta_m_1, (1.0 + alpha1 * beta1) / (beta1 - beta2) + 1.0);
-
-			pi_m = (1 - beta_m_1) * (1 - beta_m_2) * pow(fi_m, -1.0 / (Consts::k - 1.0));
-
-			if (fabs(pi_m - pi_m_star) < eps) break;					// Условие выхода из цикла
-			
-			if (pi_m > pi_m_star) a = B;
-			else b = B;
+		data = new double*[x];
+		for (int i = 0; i < x; i++)
+		{
+			data[i] = new double[y];
+			for (int j = 0; j < y; j++)
+				data[i][j] = mtrx.data[i][j];
 		}
 	}
 
-	void calcLambdaK()
-	{
-		beta_k = B1 / K1 * (1.0 - z0);
-		beta_k1 = beta_k / beta1;
-		beta_k2 = beta_k / beta2;
-		fi_k = pow(1.0 - beta_k2, (1 + alpha1 * beta2) / (beta1 - beta2) - 1.0) /
-			pow(1.0 - beta_k1, (1 + alpha1 * beta1) / (beta1 - beta2) + 1.0);
-
-		Lambda_K = Consts::f * Delta * psi0 / p0 * (pow(fi_k, 1.0 / (Consts::k - 1.0)) - 1.0) -
-			(1.0 - Consts::alpha_k * Consts::delta) / Consts::delta * psi0 * Delta * beta_k / gamma1 *
-			(1.0 + 0.5 * alpha1 * beta_k);
-		r_K = 0.5 * (Consts::k - 1.0) * B * pow(1.0 - z0, 2.0);
+	~Matrix() {
+		for (int i = 0; i < x; i++)
+			delete[] data[i];
+		delete[] data;
 	}
 
-	void calcForEtaK(double eta_K)
-	{
-		Lambda_D = Lambda_K / eta_K;
-		r_D = hi1 - (hi1 - r_K) * pow((1.0 - Consts::alpha_k * Delta + Lambda_K) /
-			(1.0 - Consts::alpha_k * Delta + Lambda_D), Consts::k - 1.0);
+	Matrix& T();
+	Matrix& zeros();
 
-		omega = q * K / (2 * Consts::f / (Consts::k - 1.0) * r_D / pow(vd, 2.0) - 1.0 / 3.0);
-		omega_q = omega / q;
-		W0 = omega / Delta;
-		double S = 0.25 * pi * pow(d, 2.0) * ns;
-		L0 = W0 / S;
-		LD = Lambda_D * L0;
-		fi = K + 1.0 / 3.0 * omega / q;
-		Ik = sqrt(Consts::f * omega * fi * q * B) / S;
-	}
-
-	double calcZSluh() {
-		Z_Sluh = Consts::C * sqrt(1.0 + Lambda_D) / (pow(omega_q, 1.5) * pow((LD + L0) / d, 4.0));
-		return Z_Sluh;
-	}
-
-	double calcZSluh(double v1_vd) {
-		Z_Sluh = Consts::C * sqrt(1.0 + 1.0 / Lambda_D) / (pow(omega_q, 1.5) * pow((LD + L0) / d, 4.0) * v1_vd);
-		return Z_Sluh;
-	}
+	friend std::ostream& operator<<(std::ostream &os, const Matrix &mtrx);
 };
-typedef std::vector<Barrel> Barrels;
+inline std::ostream& operator<<(std::ostream &os, const Matrix &mtrx)
+{
+	for (int i = 0; i < mtrx.x; i++)
+	{
+		os << "[\t";
+		for (int j = 0; j < mtrx.y; j++)
+			os << mtrx.data[i][j] << '\t';
+		os << "]\n";
+	}
+
+	return os;
+}
+
+struct Powder
+{
+	std::string name;
+	double
+		f,
+		k,
+		alpha,
+		T,
+		delta,
+		Ik,
+		zk,
+		kappa1,
+		lambda1,
+		kappa2,
+		lambda2,
+		kappa_f,
+		k_f;
+
+	double R() {
+		return f / T;
+	}
+	friend std::ostream& operator<<(std::ostream &os, const Powder &p);
+};
+typedef std::vector<Powder> Powders;
+
+inline std::ostream& operator<<(std::ostream &os, const Powder &p)
+{
+	os << "\tПорох " << p.name << ":\n";
+	os << "\t - f = " << p.f * 1e-6 << " (МДж/кг);\n";
+	os << "\t - k = " << p.k << ";\n";
+	os << "\t - alpha = " << p.alpha * 1e3 << " (дм^3/кг);\n";
+	os << "\t - delta = " << p.delta * 1e-3 << " (кг/дм^3);\n";
+	os << "\t - T = " << p.T << " (К);\n";
+	os << "\t - Ik = " << p.Ik * 1e-6 << " (МПа*с);\n";
+	os << "\t - zk = " << p.zk << ";\n";
+	os << "\t - kappa1 = " << p.kappa1 << ";\n";
+	os << "\t - lambda1 = " << p.lambda1 << ";\n";
+	os << "\t - kappa2 = " << p.kappa2 << ";\n";
+	os << "\t - lambda2 = " << p.lambda2 << ";\n";
+	os << "\t - kappa_f = " << p.kappa_f << ";\n";
+	os << "\t - k_f = " << p.k_f << ";\n";
+
+	return os;
+}
+
+struct Result
+{
+	double t;
+	double p, W, W0;
+	double V, L;
+	double psi, z;
+	double Delta, w_q;
+};
+typedef std::vector<Result> Results;
 
 #endif

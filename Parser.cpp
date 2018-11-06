@@ -63,9 +63,46 @@ string Parser::readStr()
 Barrel& Parser::readBarrel()
 {
 	file >> barr.Cq >> barr.CE >> barr.CE15 >> barr.eta_omega >> barr.omega_q >>
-		barr.pm_kr >> barr.pm >> barr.hi >>  barr.ns;
+		barr.pm_kr >> barr.pm >> barr.hi >> barr.ns;
 
 	return barr;
+}
+
+const Powders& Parser::readXMLPowders(const string &path)
+{
+	if (!powders.empty()) powders.clear();
+
+	Powder powder;
+	pugi::xml_document doc;
+	pugi::xml_parse_result res = doc.load_file(path.c_str());
+	if (!res) throw "Error in <readPowders()>!";
+
+	pugi::xml_node nd, ndpow;
+	nd = doc.child("root").child("POWDERS");
+	ndpow = nd.child("Powder");
+	while (ndpow)
+	{
+		powder.name = ndpow.attribute("name").as_string();
+		powder.f = ndpow.child("Data").attribute("f").as_double() * 1e6;
+		powder.alpha = ndpow.child("Data").attribute("alpha").as_double() * 1e-3;
+		powder.delta = ndpow.child("Data").attribute("delta").as_double() * 1e3;
+		powder.Ik = ndpow.child("Data").attribute("Ik").as_double() * 1e6;
+		powder.k = ndpow.child("Data").attribute("k").as_double();
+		powder.kappa1 = ndpow.child("Data").attribute("kappa1").as_double();
+		powder.kappa2 = ndpow.child("Data").attribute("kappa2").as_double();
+		powder.kappa_f = ndpow.child("Data").attribute("kappa_f").as_double();
+		powder.k_f = ndpow.child("Data").attribute("k_f").as_double();
+		powder.lambda1 = ndpow.child("Data").attribute("lambda1").as_double();
+		powder.lambda2 = ndpow.child("Data").attribute("lambda2").as_double();
+		powder.T = ndpow.child("Data").attribute("T").as_double();
+		powder.zk = ndpow.child("Data").attribute("zk").as_double();
+
+		powders.push_back(powder);
+
+		ndpow = ndpow.next_sibling("Powder");
+	}
+
+	return powders;
 }
 
 void Parser::write(const string &txt)

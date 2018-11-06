@@ -1,5 +1,4 @@
 #include "Solver.h"
-#include "Parser.h"
 
 #include <cstdlib>
 #include <math.h>
@@ -13,8 +12,8 @@ double Solver::bilinearInterp(double x, double y, double **table)
 	int ix, iy;
 
 	/*
-		* Элемент table[0][0] не рассматривается, т.к. нужен только для создания матрицы (см. файл chuev_table_33.txt.).
-		* Это приводит к тому, что в циклах i начинается с 1, а не с 0.
+	* Элемент table[0][0] не рассматривается, т.к. нужен только для создания матрицы (см. файл chuev_table_33.txt.).
+	* Это приводит к тому, что в циклах i начинается с 1, а не с 0.
 	*/
 	// Поиск индексов эл-ов, между которыми находится заданная точка...
 	// ...по оси COLOUMS (X)
@@ -44,7 +43,7 @@ double Solver::bilinearInterp(double x, double y, double **table)
 	return 1.0 / (table[iy + 1][0] - table[iy][0]) * ((table[iy + 1][0] - y) * fR1 + (y - table[iy][0]) * fR2);
 }
 
-int TestSolver::solve()
+void TestSolver::solve()
 {
 	cout << "\t<Функция тестового решателя>\n";
 
@@ -87,11 +86,9 @@ int TestSolver::solve()
 	par.write("L0 = ", barr->L0);
 	par.write("LD = ", barr->LD);
 	par.write("Ik = ", barr->Ik * 1e-6);
-
-	return 0;
 }
 
-int AnalogsSolver::solve()
+void AnalogsSolver::solve()
 {
 	cout << "\t<Функция расчета аналогов>\n";
 
@@ -102,9 +99,9 @@ int AnalogsSolver::solve()
 		fillAnalogsData();
 
 	Parser par(ANALOGS_PATH, 'r');
-	
+
 	double K;
-	cout << "\t - коэф-т учета второстепенных работ для аналогов: K = ";
+	cout << "\t - коэф-т учета второстепенных работ: K = ";
 	cin >> K;
 
 	analogs.clear();
@@ -115,31 +112,27 @@ int AnalogsSolver::solve()
 		double q = par.readNext();
 		double vd = par.readNext();
 		double l_d = par.readNext();
+		double pm = par.readNext();
 
 		if (par.isEnd()) break;							// Выход из цикла. При таком расположении
 																				// не произойдет работы с переменными, в которые записывается последняя (пустая)
 																				// строка, из-за чего значения будут неадекватными.
 
-		Analog a(name, d, q, vd, l_d);
+		Analog a(name, d, q, vd, l_d, pm);
 		a.CE15 = a.CE;
+		a.eta_omega = Chuev(a.CE15).eta_omega;
 		do
 		{
-			a.eta_omega = Chuev(a.CE15).eta_omega;
 			a.CE15 = calcCE15(a.Cq, a.CE, a.eta_omega);
-			double pm_kr = Chuev(a.CE15).pm_kr;
-			double omega_q = a.CE15 / (a.Cq * a.eta_omega);
-			double fi = K + 1.0 / 3.0 * omega_q;
-			a.pm = pm_kr * fi * Consts::Nkr / (Consts::fi1 + 0.5 * omega_q) * NEW_BARR_K;
+			a.eta_omega = Chuev(a.CE15).eta_omega;
 
-			cout << "\tp(CE_15) (в тех. системе) для " << a.name << ":\n" <<
-				"\t\tCE15 = " << a.CE15 << ", pm = " << a.pm << endl;
-			
-			cout << "\tУточнить решение? (+/-): ";
+			cout << "\tОрудие " << a.name << ":\n";
+			cout << "\t\t - уточнить решение? (+/-): ";
 			cin >> ch;
 		} while (ch == '+');
-		cout << '\n';
 
 		analogs.push_back(a);
+		cout << '\n';
 	}
 
 	Parser::createFile(ANALOGS_RES_PATH);
@@ -149,9 +142,10 @@ int AnalogsSolver::solve()
 	if (!par.isOpen() || !parres.isOpen())
 	{
 		status = "faild";
-		return 1;
+		return;
 	}
 
+	// Запись расчетов аналогов в файл
 	for (Analogs::iterator itr = analogs.begin(); itr != analogs.end(); itr++)
 	{
 		parres.write(itr->name + "\t");
@@ -169,7 +163,6 @@ int AnalogsSolver::solve()
 	}
 
 	printResults();
-	return 0;
 }
 
 void AnalogsSolver::fillAnalogsData()
@@ -184,7 +177,7 @@ void AnalogsSolver::fillAnalogsData()
 	while (ch == '+')
 	{
 		string name;
-		double d, q, vd, l_d;
+		double d, q, vd, l_d, pm;
 
 		cout << "\t\tАналог №" << ++num << ":\n";
 		cout << "\t\t - название: "; cin >> name;
@@ -192,8 +185,9 @@ void AnalogsSolver::fillAnalogsData()
 		cout << "\t\t - q, кг: "; cin >> q;
 		cout << "\t\t - Vd, м/с: "; cin >> vd;
 		cout << "\t\t - длина ведущей части в калибрах: "; cin >> l_d;
+		cout << "\t\t - максимальное давление, кг/см^2: "; cin >> pm;
 
-		analogs.push_back(Analog(name, d, q, vd, l_d));
+		analogs.push_back(Analog(name, d, q, vd, l_d, pm));
 
 		cout << "\t\tДобавить аналог? (+/-): "; cin >> ch;
 	}
@@ -206,7 +200,9 @@ void AnalogsSolver::fillAnalogsData()
 		p.write(itr->name + "\t");
 		p.write(itr->d, '\t');
 		p.write(itr->q, '\t');
-		p.write(itr->vd, '\n');
+		p.write(itr->vd, '\t');
+		p.write(itr->l_d, '\t');
+		p.write(itr->pm, '\n');
 	}
 }
 
@@ -218,10 +214,11 @@ void AnaliticSolver::calcMaxPressure()
 	char ch;
 
 	b.CE15 = b.CE;
+	b.eta_omega = Chuev(b.CE15).eta_omega;
 	do
 	{
-		b.eta_omega = Chuev(b.CE15).eta_omega;
 		b.CE15 = calcCE15(b.Cq, b.CE, b.eta_omega);
+		b.eta_omega = Chuev(b.CE15).eta_omega;				// Пересчет eta_omega для нового CE15
 		b.pm_kr = Chuev(b.CE15).pm_kr;
 		b.omega_q = b.CE15 / (b.Cq * b.eta_omega);
 		b.fi = b.K + 1.0 / 3.0 * b.omega_q;
@@ -240,23 +237,28 @@ void AnaliticSolver::calcMaxPressure()
 	cin >> b.pm;
 	b.pm *= 1e6;								// Перевод в Па из МПа
 
-	// Расчет остальных характеристик
+															// Расчет остальных характеристик
 	b.p_mid = 0.5 * b.pm;
+	b.calcHi1();
 	b.hi = Chuev(b.CE15).hi;
 
+	Parser::createFile(BARR_LOG_PATH);
+	Parser par(BARR_LOG_PATH, 'w');
+	par.write("p_mid = ", b.p_mid, '\n');
+	par.write("hi1 = ", b.hi1, '\n');
 	// Запись в файл в виде таблички
 	makeTableTxt(b, pm_nround, BARR_TABLE_PATH);
 	// Добавление в файл p_CE15.txt
-	Parser p(P_CE15_PATH, 'a');
-	p.write(b.CE15, '\t');
-	p.write(b.pm / Consts::g * 1e-4, '\n');
+	par.open(P_CE15_PATH, 'a');
+	par.write(b.CE15, '\t');
+	par.write(b.pm / Consts::g * 1e-4, '\n');
 	// Запись данных о стволе в файл для дальнейшего считывания
 	Parser::createFile(BARR_SRC_PATH);
-	p.open(BARR_SRC_PATH, 'w');
-	p.writeBarrel(b);
+	par.open(BARR_SRC_PATH, 'w');
+	par.writeBarrel(b);
 }
 
-int AnaliticSolver::solve()
+void AnaliticSolver::solve()
 {
 	cout << "\t<Функция аналитического решения>\n";
 
@@ -281,9 +283,9 @@ int AnaliticSolver::solve()
 	/*cout << "\nTable:\n";
 	for (int i = 0; i < ROWS; i++)
 	{
-		for (int j = 0; j < COLOUMS; j++)
-			cout << table[i][j] << '\t';
-		cout << '\n';
+	for (int j = 0; j < COLOUMS; j++)
+	cout << table[i][j] << '\t';
+	cout << '\n';
 	}*/
 
 	Parser::createFile(B_DELTA_PATH);
@@ -309,9 +311,26 @@ int AnaliticSolver::solve()
 
 	Parser::createFile(Z_SLUH_PATH);
 	Parser parsluh(Z_SLUH_PATH, 'w');
+	Parser::createFile("results/LD.txt");
+	Parser parLD("results/LD.txt", 'w');
+	Parser::createFile("results/Ik.txt");
+	Parser parIk("results/Ik.txt", 'w');
+	Parser::createFile("results/W0.txt");
+	Parser parW0("results/W0.txt", 'w');
+	Parser::createFile("results/W.txt");
+	Parser parW("results/W.txt", 'w');
+	Parser::createFile("results/w_q.txt");
+	Parser parWQ("results/w_q.txt", 'w');
 	// Заполнение верхней строки файла
 	for (vector<double>::iterator itr = eta_K.begin(); itr != eta_K.end(); itr++)
+	{
 		parsluh.write('\t', *itr);
+		parLD.write('\t', *itr);
+		parW0.write('\t', *itr);
+		parW.write('\t', *itr);
+		parIk.write('\t', *itr);
+		parWQ.write('\t', *itr);
+	}
 
 	// Расчетная часть
 	for (vector<double>::iterator itr1 = Delta.begin(); itr1 != Delta.end(); itr1++)
@@ -323,6 +342,11 @@ int AnaliticSolver::solve()
 
 		// Действия с 22 по 34
 		parsluh.write('\n', *itr1);
+		parLD.write('\n', *itr1);
+		parW.write('\n', *itr1);
+		parW0.write('\n', *itr1);
+		parIk.write('\n', *itr1);
+		parWQ.write('\n', *itr1);
 		for (vector<double>::iterator itr2 = eta_K.begin(); itr2 != eta_K.end(); itr2++)
 		{
 			barr.eta_K = *itr2;
@@ -336,22 +360,233 @@ int AnaliticSolver::solve()
 					Z = barr.calcZSluh(bilinearInterp(hi_n, barr.Lambda_D, table));
 				}
 				else Z = barr.calcZSluh();
-				
+
 				barrs.push_back(barr);
+
 				parsluh.write('\t', Z);
+				parLD.write('\t', barr.LD / barr.d);
+				parW0.write('\t', barr.W0 * 1e3);			// В дм^3
+				parW.write('\t', (barr.W + barr.W0) * 1e3);			// В дм^3
+				parIk.write('\t', barr.Ik * 1e-6);							// В МПа*с
+				parWQ.write('\t', barr.omega_q);
 			}
 			else
+			{
 				parsluh.write('\t', 0.0);
+				parLD.write('\t', 0.0);
+				parW0.write('\t', 0.0);
+				parW.write('\t', 0.0);
+				parIk.write('\t', 0.0);
+				parWQ.write('\t', 0.0);
+			}
 		}
-		
+
 		par.write(barr.Delta, '\t');
 		par.write(barr.B, '\n');
 	}
 
 	// Запись в файл
 	writeBarrelsToFile();
+}
 
-	return 0;
+void DirectSolver::solve()
+{
+	cout << "\t<Функция прямого решателя>\n";
+	fillData();
+
+	// Задание шага по времени
+	double dt;
+	do
+	{
+		cout << "\tШаг по времени, мкс: "; cin >> dt;
+	} while (dt < 1.0 && dt > 1e4);
+	dt *= 1e-6;
+
+	// Выбор порохов (сколько и какие хочешь)
+	while (true)
+	{
+		int indx = choosePowder();
+		if (indx == -1) break;
+
+		// Создание файлов результатов для различных порохов
+		char buf[3];
+		_itoa_s(indx, buf, 10);
+		string path = "direct_res/pm_"; path += buf; path += ".txt";
+		Parser::createFile(path);
+		Parser par(path, 'w');
+
+		par.write(pwd.name + "\n");
+
+		// РЕШЕНИЕ
+		for (int i = 0; i < size_d; i++)
+		{
+			// Решение системы ОДУ
+			res.Delta = Delta[i];
+			for (int j = 0; j < size_wq; j++)
+			{
+				res.w_q = w_q[j];
+				// Нач. условия
+				res.L = 0.0;
+				res.p = Consts::p_flash;
+				res.psi = 0.0;
+				res.t = 0.0;
+				res.V = 0.0;
+				res.z = 0.0;
+				// Доп. данные
+				res.W0 = res.w_q / res.Delta;
+				res.W = q * res.w_q / res.Delta - q * res.w_q / pwd.delta;
+
+				// Далее решается система с обрывом по нахождению "местного" pm...
+				searchPmax(dt, Delta[i], w_q[j]);
+			}
+			res = *minDeltaPm();
+
+			par.write(res.Delta, '\t');
+			par.write(res.w_q, '\t');
+			par.write(res.W0, '\t');
+			par.write(res.W, '\t');
+			par.write(res.p, '\n');
+
+			ress_pm.clear();
+		}
+	}
+}
+
+void DirectSolver::fillData()
+{
+	cout << "\tПределы варьирования плотности заряжания:\n";
+	double from, to, step;
+	cout << "\t - от\t"; cin >> from;
+	cout << "\t - до\t"; cin >> to;
+	do {
+		cout << "\t - шаг\t"; cin >> step;
+	} while (step < eps);
+	if (from > to)
+	{
+		double buf = from;
+		from = to;
+		to = buf;
+	}
+
+	size_d = (to - from) / step + 1;
+	Delta = new double[size_d];
+	for (int i = 0; i < size_d; i++)
+		Delta[i] = from + i * step;
+
+	cout << "\tПределы поиска относительной массы заряда:\n";
+	cout << "\t - от\t\t"; cin >> from;
+	cout << "\t - до\t\t"; cin >> to;
+	do {
+		cout << "\t - разбиений\t"; cin >> size_wq;
+	} while (size_wq <= 0);
+	if (from > to)
+	{
+		double buf = from;
+		from = to;
+		to = buf;
+	}
+
+	step = (to - from) / size_wq;
+	size_wq++;
+	w_q = new double[size_wq];
+	for (int i = 0; i < size_wq + 1; i++)
+		w_q[i] = from + i * step;
+}
+
+int DirectSolver::choosePowder()
+{
+	cout << "\n\tВыберите порох из списка (по номеру):\n";
+	showPowders();
+
+	int i;
+	cout << "\tНомер пороха: ";  cin >> i;
+	i--;
+	if (i < 0 && i > pwds.size() - 1)
+		return -1;
+
+	pwd = pwds[i];
+	cout << "\tВыбран:\n" << pwd << endl;
+
+	return i + 1;
+}
+
+void DirectSolver::searchPmax(double dt, double delta, double wq)
+{
+	double buf_p = 0.0;
+
+	double fz[4], fpsi[4], fL[4], fV[4], fW[4], fp[4];
+	while (res.p > buf_p)
+	{
+		buf_p = res.p;
+
+		fz[0] = dz(res.p);
+		fpsi[0] = dpsi(res.z, res.p);
+		fL[0] = dL(res.V);
+		fV[0] = dV(res.p, wq);
+		fW[0] = dW(q * wq, res.z, res.p, res.V);
+		fp[0] = dp(res.W, q * wq, delta, res.p, res.z, res.L, res.V);
+
+		fz[1] = dz(res.p + 0.5 * fp[0] * dt);
+		fpsi[1] = dpsi(res.z + 0.5 * fz[0] * dt, res.p + 0.5 * fp[0] * dt);
+		fL[1] = dL(res.V + 0.5 * fV[0] * dt);
+		fV[1] = dV(res.p + 0.5 * fp[0] * dt, wq);
+		fW[1] = dW(q * wq, res.z + 0.5 * fz[0] * dt, res.p + 0.5 * fp[0] * dt, res.V + 0.5 * fV[0] * dt);
+		fp[1] = dp(res.W + 0.5 * fW[0] * dt, q * wq, delta, res.p + 0.5 * fp[0] * dt,
+			res.z + 0.5 * fz[0] * dt, res.L + 0.5 * fL[0] * dt, res.V + 0.5 * fV[0] * dt);
+
+		fz[2] = dz(res.p + 0.5 * fp[1] * dt);
+		fpsi[2] = dpsi(res.z + 0.5 * fz[1] * dt, res.p + 0.5 * fp[1] * dt);
+		fL[2] = dL(res.V + 0.5 * fV[1] * dt);
+		fV[2] = dV(res.p + 0.5 * fp[1] * dt, wq);
+		fW[2] = dW(q * wq, res.z + 0.5 * fz[1] * dt, res.p + 0.5 * fp[1] * dt, res.V + 0.5 * fV[1] * dt);
+		fp[2] = dp(res.W + 0.5 * fW[1] * dt, q * wq, delta, res.p + 0.5 * fp[1] * dt,
+			res.z + 0.5 * fz[1] * dt, res.L + 0.5 * fL[1] * dt, res.V + 0.5 * fV[1] * dt);
+
+		fz[3] = dz(res.p + fp[2] * dt);
+		fpsi[3] = dpsi(res.z + fz[2] * dt, res.p + fp[2] * dt);
+		fL[3] = dL(res.V + fV[2] * dt);
+		fV[3] = dV(res.p + fp[2] * dt, wq);
+		fW[3] = dW(q * wq, res.z + fz[2] * dt, res.p + fp[2] * dt, res.V + fV[2] * dt);
+		fp[3] = dp(res.W + fW[2] * dt, q * wq, delta, res.p + fp[2] * dt,
+			res.z + fz[2] * dt, res.L + fL[2] * dt, res.V + fV[2] * dt);
+
+		res.t += dt;
+		res.z += (fz[0] + 2.0 * fz[1] + 2.0 * fz[2] + fz[3]) * dt / 6.0;
+		res.psi += (fpsi[0] + 2.0 * fpsi[1] + 2.0 * fpsi[2] + fpsi[3]) * dt / 6.0;
+		res.L += (fL[0] + 2.0 * fL[1] + 2.0 * fL[2] + fL[3]) * dt / 6.0;
+		res.V += (fV[0] + 2.0 * fV[1] + 2.0 * fV[2] + fV[3]) * dt / 6.0;
+		res.W += (fW[0] + 2.0 * fW[1] + 2.0 * fW[2] + fW[3]) * dt / 6.0;
+		res.p += (fp[0] + 2.0 * fp[1] + 2.0 * fp[2] + fp[3]) * dt / 6.0;
+
+		if (res.p > Consts::p_flash) key_V = 1;
+		if (res.z > 1.0) key_S = 0;
+		if (res.z > pwd.zk) key_Z = 0;
+	}
+
+	ress_pm.push_back(res);
+}
+
+Results::iterator DirectSolver::minDeltaPm()
+{
+	Results::iterator itr = ress_pm.begin();
+	double min = fabs(ress_pm.begin()->p - pm);
+
+	for (Results::iterator i = ress_pm.begin(); i != ress_pm.end(); i++)
+		if (fabs(i->p - pm) < min && i->p < pm)
+		{
+			min = fabs(i->p - pm);
+			itr = i;
+		}
+
+	return itr;
+}
+
+void DirectSolver::showPowders()
+{
+	int i = 0;
+	cout << "\tСписок порохов:\n";
+	for (Powders::const_iterator itr = pwds.begin(); itr != pwds.end(); itr++)
+		cout << ++i << ") " << *itr << endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -420,17 +655,33 @@ void AnaliticSolver::writeBarrelsToFile()
 	Parser::createFile(RESULTS_PATH);
 	Parser par(RESULTS_PATH, 'w');
 
+	const int nvals = 9;
+	Matrix mtrx(barrs.size(), nvals);
+	Matrix m_sluh(21, 17 * 21);
+	m_sluh.zeros();
+
+	int i = 0;
 	for (Barrels::const_iterator itr = barrs.begin(); itr != barrs.end(); itr++)
 	{
-		par.write(itr->Delta, '\t');
-		par.write(itr->eta_K, '\t');
+		int j = 0;
+		mtrx.data[i][j++] = itr->Delta;
+		mtrx.data[i][j++] = itr->eta_K;
 
-		par.write(itr->Lambda_D, '\t');
-		par.write(itr->L0 / itr->d, '\t');
-		par.write(itr->LD / itr->d, '\t');
-		par.write(itr->omega_q, '\t');
-		par.write(itr->W0 * 1e3, '\t');			// В дм^3
-		par.write(itr->Ik * 1e-6, '\t');
-		par.write(itr->Z_Sluh, '\n');
+		mtrx.data[i][j++] = itr->Lambda_D;
+		mtrx.data[i][j++] = itr->L0 / (itr->hi * itr->d);
+		mtrx.data[i][j++] = itr->LD / (itr->d);
+		mtrx.data[i][j++] = itr->omega_q;
+		mtrx.data[i][j++] = (itr->W + itr->W0) * 1e3;
+		mtrx.data[i][j++] = itr->Ik * 1e-6;
+		mtrx.data[i][j] = itr->Z_Sluh;
+
+		i++;
+	}
+
+	for (int i = 0; i < mtrx.x; i++)
+	{
+		for (int j = 0; j < mtrx.y - 1; j++)
+			par.write(mtrx.data[i][j], '\t');
+		par.write(mtrx.data[i][mtrx.y - 1], '\n');
 	}
 }
