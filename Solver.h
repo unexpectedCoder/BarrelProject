@@ -136,9 +136,6 @@ private:
 	std::string status;
 	Powder pwd;
 	Powders pwds;
-	Result res;
-	Results ress;
-	Results ress_pm;
 	double *Delta, *w_q;
 	double d, q, Vd, ns, S, K;
 	double p0, pm;
@@ -147,6 +144,10 @@ private:
 
 	void fillData();
 	int choosePowder();
+	void searchPmax(double dt, double delta, double wq, Results &rs);
+	Results::const_iterator minDeltaPm(const Results &rs);
+	void sys(double dt, double delta, double wq, Results &rs);
+	void writeResultsToFile(const std::string &path, const Results &rs);
 
 	// Ñèñòåìà ÎÄÓ
 	double dz(double p) {
@@ -159,23 +160,18 @@ private:
 	double dL(double V) {
 		return V;
 	}
-	double dV(double p, double w_q) {
-		double fi = K + 1.0 / 3.0 * w_q;
+	double dV(double p, double w_q, double fi) {
 		return p * S / (fi * q) * key_V;
 	}
 	double dW(double omega, double z, double p, double V) {
 		return (1.0 - pwd.alpha * pwd.delta) / pwd.delta * omega * dpsi(z, p) + S * V;
 	}
-	double dp(double W, double omega, double _Delta, double p, double z, double L, double V) {
-		double W0 = omega / _Delta;
-		double F0 = 4.0 * W0 / d + 2.0 * S;
+	double dp(double W, double omega, double _Delta, double p, double z, double L, double V, double F0) {
 		return 1.0 / W * (pwd.f * omega * dpsi(z, p) -
 			(pwd.k - 1.0) * Consts::sigma_T * Consts::nu_T * p * (F0 + pi * d * L) / pwd.R() -
 			pwd.k * p * dW(omega, z, p, V));
 	}
-
-	void searchPmax(double dt, double delta, double wq);
-	Results::iterator minDeltaPm();
+	///////////////////////////////////////////////////////////////////////////////////////////
 
 public:
 	DirectSolver(double _pm = 410e6, double _d = 0.1, double _q = 4.35, double _Vd = 1600, double _K = 1.03, double _p0 = 1e7, double _ns = 1) :
@@ -195,7 +191,7 @@ public:
 	}
 
 	void solve();
-	void showPowders();
+	int showPowders();
 
 	void printResults() {
 		std::cout << "\tÑÒÀÒÓÑ ÂÛÏÎËÍÅÍÈß: " << status << ".\n";

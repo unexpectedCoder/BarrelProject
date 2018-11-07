@@ -59,12 +59,6 @@ int main()
 	{
 		DirectSolver *dirsol = new DirectSolver();
 		dirsol->printInfo();
-
-		cout << "\tВывести список заданных порохов? (+/-): ";
-		cin >> choice;
-		if (choice == '+')
-			dirsol->showPowders();
-
 		dirsol->solve();
 		dirsol->printResults();
 	}

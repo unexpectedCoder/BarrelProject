@@ -402,53 +402,91 @@ void DirectSolver::solve()
 	} while (dt < 1.0 && dt > 1e4);
 	dt *= 1e-6;
 
-	// Выбор порохов (сколько и какие хочешь)
+	char ch;
+	////////////////////////////// ПОИСК pm ///////////////////////////////
+	cout << "\tНайти данные для линии pm на индикаторной диаграмме? (+/-): ";
+	cin >> ch;
+	if (ch == '+')
+	{
+		showPowders();
+		while (true)
+		{
+			int indx = choosePowder();
+			if (indx == -1) break;
+
+			// Создание файлов результатов для различных порохов
+			char buf[3];
+			_itoa_s(indx, buf, 10);
+			string path = "direct_res/pm_"; path += buf; path += ".txt";
+			Parser::createFile(path);
+			Parser par(path, 'w');
+
+			////////////////////////// Решение системы ОДУ ////////////////////////////
+			par.write(pwd.name + "\n");
+			par.write("Delta\tw/q\tW0\tW\tp\n");
+			for (int i = 0; i < size_d; i++)
+			{
+				Results rs;
+				for (int j = 0; j < size_wq; j++)
+					searchPmax(dt, Delta[i], w_q[j], rs);
+
+				Result res = *minDeltaPm(rs);				// Дальше используется в полном решении (см. ниже)
+				// Запись результатов в файл
+				par.write(res.Delta, '\t');
+				par.write(res.w_q, '\t');
+				par.write(res.W0 * 1e3, '\t');
+				par.write(res.W * 1e3, '\t');
+				par.write(res.p * 1e-6, '\n');
+
+				rs.~vector();
+			}
+
+			cout << "\tРезультаты см. в " << path << ".\n";
+		}
+	}
+	
+	////////////////////////////// ПОЛНОЕ РЕШЕНИЕ ///////////////////////////////
+	cout << "\t<Численное решение ОЗВБ>\n";
+	showPowders();
 	while (true)
 	{
 		int indx = choosePowder();
 		if (indx == -1) break;
 
-		// Создание файлов результатов для различных порохов
 		char buf[3];
 		_itoa_s(indx, buf, 10);
-		string path = "direct_res/pm_"; path += buf; path += ".txt";
+		string path = "direct_res/IDiag_"; path += buf; path += ".txt";
 		Parser::createFile(path);
 		Parser par(path, 'w');
-
 		par.write(pwd.name + "\n");
-
-		// РЕШЕНИЕ
+		par.write("W0\tW\n");
+		
+		////////////////////////// Решение системы ОДУ ////////////////////////////
 		for (int i = 0; i < size_d; i++)
-		{
-			// Решение системы ОДУ
-			res.Delta = Delta[i];
 			for (int j = 0; j < size_wq; j++)
 			{
-				res.w_q = w_q[j];
-				// Нач. условия
-				res.L = 0.0;
-				res.p = Consts::p_flash;
-				res.psi = 0.0;
-				res.t = 0.0;
-				res.V = 0.0;
-				res.z = 0.0;
-				// Доп. данные
-				res.W0 = res.w_q / res.Delta;
-				res.W = q * res.w_q / res.Delta - q * res.w_q / pwd.delta;
+				Results rs;
 
-				// Далее решается система с обрывом по нахождению "местного" pm...
-				searchPmax(dt, Delta[i], w_q[j]);
+				// Система решается до достижения Vd
+				sys(dt, Delta[i], w_q[j], rs);
+				par.write((rs.end() - 1)->W0 * 1e3, '\t');
+				par.write((rs.end() - 1)->W * 1e3, '\n');
+
+				// Создание файлов результатов для различных порохов
+				/*
+				char buf1[3], buf2[3], buf3[3];
+				_itoa_s(indx, buf1, 10);
+				_itoa_s(i + 1, buf2, 10);
+				_itoa_s(j + 1, buf3, 10);
+				path = "direct_res/res_"; path += buf1; path += "_"; path += buf2; path += "_"; path += buf3; path += ".txt";
+				// Запись в файл
+				writeResultsToFile(path, rs);
+				*/
+
+				rs.~vector();
 			}
-			res = *minDeltaPm();
 
-			par.write(res.Delta, '\t');
-			par.write(res.w_q, '\t');
-			par.write(res.W0, '\t');
-			par.write(res.W, '\t');
-			par.write(res.p, '\n');
-
-			ress_pm.clear();
-		}
+		cout << "\tРезультаты см. в " << path << ".\n";
 	}
 }
 
@@ -495,25 +533,42 @@ void DirectSolver::fillData()
 
 int DirectSolver::choosePowder()
 {
-	cout << "\n\tВыберите порох из списка (по номеру):\n";
-	showPowders();
-
 	int i;
-	cout << "\tНомер пороха: ";  cin >> i;
+	cout << "\t - номер пороха (из списка): ";  cin >> i;
 	i--;
-	if (i < 0 && i > pwds.size() - 1)
+	if (i < 0 && i >= pwds.size())
 		return -1;
 
 	pwd = pwds[i];
-	cout << "\tВыбран:\n" << pwd << endl;
+	cout << "\tВыбраный порох: " << pwd.name << '\n';
 
 	return i + 1;
 }
 
-void DirectSolver::searchPmax(double dt, double delta, double wq)
+void DirectSolver::searchPmax(double dt, double delta, double wq, Results &rs)
 {
-	double buf_p = 0.0;
+	key_V = 0; key_S = 1; key_Z = 1;
 
+	Result res;
+	res.Delta = delta;
+	res.w_q = wq;
+	res.W0 = wq / delta;
+	// Нач. условия
+	res.L = 0.0;
+	res.p = Consts::p_flash;
+	res.psi = 0.0;
+	res.t = 0.0;
+	res.V = 0.0;
+	res.z = 0.0;
+	res.W = q * wq / delta - q * wq / pwd.delta;
+
+	// Предварительные расчеты
+	double buf_p = 0.0;
+	double fi = K + 1.0 / 1.3 * wq;
+	double W0 = q * wq / delta;
+	double F0 = 4.0 * W0 / d + 2.0 * S;
+
+	// Решение системы
 	double fz[4], fpsi[4], fL[4], fV[4], fW[4], fp[4];
 	while (res.p > buf_p)
 	{
@@ -522,33 +577,33 @@ void DirectSolver::searchPmax(double dt, double delta, double wq)
 		fz[0] = dz(res.p);
 		fpsi[0] = dpsi(res.z, res.p);
 		fL[0] = dL(res.V);
-		fV[0] = dV(res.p, wq);
+		fV[0] = dV(res.p, wq, fi);
 		fW[0] = dW(q * wq, res.z, res.p, res.V);
-		fp[0] = dp(res.W, q * wq, delta, res.p, res.z, res.L, res.V);
+		fp[0] = dp(res.W, q * wq, delta, res.p, res.z, res.L, res.V, F0);
 
 		fz[1] = dz(res.p + 0.5 * fp[0] * dt);
 		fpsi[1] = dpsi(res.z + 0.5 * fz[0] * dt, res.p + 0.5 * fp[0] * dt);
 		fL[1] = dL(res.V + 0.5 * fV[0] * dt);
-		fV[1] = dV(res.p + 0.5 * fp[0] * dt, wq);
+		fV[1] = dV(res.p + 0.5 * fp[0] * dt, wq, fi);
 		fW[1] = dW(q * wq, res.z + 0.5 * fz[0] * dt, res.p + 0.5 * fp[0] * dt, res.V + 0.5 * fV[0] * dt);
 		fp[1] = dp(res.W + 0.5 * fW[0] * dt, q * wq, delta, res.p + 0.5 * fp[0] * dt,
-			res.z + 0.5 * fz[0] * dt, res.L + 0.5 * fL[0] * dt, res.V + 0.5 * fV[0] * dt);
+			res.z + 0.5 * fz[0] * dt, res.L + 0.5 * fL[0] * dt, res.V + 0.5 * fV[0] * dt, F0);
 
 		fz[2] = dz(res.p + 0.5 * fp[1] * dt);
 		fpsi[2] = dpsi(res.z + 0.5 * fz[1] * dt, res.p + 0.5 * fp[1] * dt);
 		fL[2] = dL(res.V + 0.5 * fV[1] * dt);
-		fV[2] = dV(res.p + 0.5 * fp[1] * dt, wq);
+		fV[2] = dV(res.p + 0.5 * fp[1] * dt, wq, fi);
 		fW[2] = dW(q * wq, res.z + 0.5 * fz[1] * dt, res.p + 0.5 * fp[1] * dt, res.V + 0.5 * fV[1] * dt);
 		fp[2] = dp(res.W + 0.5 * fW[1] * dt, q * wq, delta, res.p + 0.5 * fp[1] * dt,
-			res.z + 0.5 * fz[1] * dt, res.L + 0.5 * fL[1] * dt, res.V + 0.5 * fV[1] * dt);
+			res.z + 0.5 * fz[1] * dt, res.L + 0.5 * fL[1] * dt, res.V + 0.5 * fV[1] * dt, F0);
 
 		fz[3] = dz(res.p + fp[2] * dt);
 		fpsi[3] = dpsi(res.z + fz[2] * dt, res.p + fp[2] * dt);
 		fL[3] = dL(res.V + fV[2] * dt);
-		fV[3] = dV(res.p + fp[2] * dt, wq);
+		fV[3] = dV(res.p + fp[2] * dt, wq, fi);
 		fW[3] = dW(q * wq, res.z + fz[2] * dt, res.p + fp[2] * dt, res.V + fV[2] * dt);
 		fp[3] = dp(res.W + fW[2] * dt, q * wq, delta, res.p + fp[2] * dt,
-			res.z + fz[2] * dt, res.L + fL[2] * dt, res.V + fV[2] * dt);
+			res.z + fz[2] * dt, res.L + fL[2] * dt, res.V + fV[2] * dt, F0);
 
 		res.t += dt;
 		res.z += (fz[0] + 2.0 * fz[1] + 2.0 * fz[2] + fz[3]) * dt / 6.0;
@@ -563,15 +618,89 @@ void DirectSolver::searchPmax(double dt, double delta, double wq)
 		if (res.z > pwd.zk) key_Z = 0;
 	}
 
-	ress_pm.push_back(res);
+	rs.push_back(res);
 }
 
-Results::iterator DirectSolver::minDeltaPm()
+void DirectSolver::sys(double dt, double delta, double wq, Results &rs)
 {
-	Results::iterator itr = ress_pm.begin();
-	double min = fabs(ress_pm.begin()->p - pm);
+	key_V = 0; key_S = 1; key_Z = 1;
 
-	for (Results::iterator i = ress_pm.begin(); i != ress_pm.end(); i++)
+	Result res;
+	res.Delta = delta;
+	res.w_q = wq;
+	res.W0 = wq / delta;
+	// Нач. условия
+	res.L = 0.0;
+	res.p = Consts::p_flash;
+	res.psi = 0.0;
+	res.t = 0.0;
+	res.V = 0.0;
+	res.z = 0.0;
+	res.W = q * wq / delta - q * wq / pwd.delta;
+
+	// Предварительные расчеты
+	double buf_p = 0.0;
+	double fi = K + 1.0 / 1.3 * wq;
+	double W0 = q * wq / delta;
+	double F0 = 4.0 * W0 / d + 2.0 * S;
+
+	rs.push_back(res);
+	double fz[4], fpsi[4], fL[4], fV[4], fW[4], fp[4];
+	while (res.V < Vd)
+	{
+		fz[0] = dz(res.p);
+		fpsi[0] = dpsi(res.z, res.p);
+		fL[0] = dL(res.V);
+		fV[0] = dV(res.p, wq, fi);
+		fW[0] = dW(q * wq, res.z, res.p, res.V);
+		fp[0] = dp(res.W, q * wq, delta, res.p, res.z, res.L, res.V, F0);
+
+		fz[1] = dz(res.p + 0.5 * fp[0] * dt);
+		fpsi[1] = dpsi(res.z + 0.5 * fz[0] * dt, res.p + 0.5 * fp[0] * dt);
+		fL[1] = dL(res.V + 0.5 * fV[0] * dt);
+		fV[1] = dV(res.p + 0.5 * fp[0] * dt, wq, fi);
+		fW[1] = dW(q * wq, res.z + 0.5 * fz[0] * dt, res.p + 0.5 * fp[0] * dt, res.V + 0.5 * fV[0] * dt);
+		fp[1] = dp(res.W + 0.5 * fW[0] * dt, q * wq, delta, res.p + 0.5 * fp[0] * dt,
+			res.z + 0.5 * fz[0] * dt, res.L + 0.5 * fL[0] * dt, res.V + 0.5 * fV[0] * dt, F0);
+
+		fz[2] = dz(res.p + 0.5 * fp[1] * dt);
+		fpsi[2] = dpsi(res.z + 0.5 * fz[1] * dt, res.p + 0.5 * fp[1] * dt);
+		fL[2] = dL(res.V + 0.5 * fV[1] * dt);
+		fV[2] = dV(res.p + 0.5 * fp[1] * dt, wq, fi);
+		fW[2] = dW(q * wq, res.z + 0.5 * fz[1] * dt, res.p + 0.5 * fp[1] * dt, res.V + 0.5 * fV[1] * dt);
+		fp[2] = dp(res.W + 0.5 * fW[1] * dt, q * wq, delta, res.p + 0.5 * fp[1] * dt,
+			res.z + 0.5 * fz[1] * dt, res.L + 0.5 * fL[1] * dt, res.V + 0.5 * fV[1] * dt, F0);
+
+		fz[3] = dz(res.p + fp[2] * dt);
+		fpsi[3] = dpsi(res.z + fz[2] * dt, res.p + fp[2] * dt);
+		fL[3] = dL(res.V + fV[2] * dt);
+		fV[3] = dV(res.p + fp[2] * dt, wq, fi);
+		fW[3] = dW(q * wq, res.z + fz[2] * dt, res.p + fp[2] * dt, res.V + fV[2] * dt);
+		fp[3] = dp(res.W + fW[2] * dt, q * wq, delta, res.p + fp[2] * dt,
+			res.z + fz[2] * dt, res.L + fL[2] * dt, res.V + fV[2] * dt, F0);
+
+		res.t += dt;
+		res.z += (fz[0] + 2.0 * fz[1] + 2.0 * fz[2] + fz[3]) * dt / 6.0;
+		res.psi += (fpsi[0] + 2.0 * fpsi[1] + 2.0 * fpsi[2] + fpsi[3]) * dt / 6.0;
+		res.L += (fL[0] + 2.0 * fL[1] + 2.0 * fL[2] + fL[3]) * dt / 6.0;
+		res.V += (fV[0] + 2.0 * fV[1] + 2.0 * fV[2] + fV[3]) * dt / 6.0;
+		res.W += (fW[0] + 2.0 * fW[1] + 2.0 * fW[2] + fW[3]) * dt / 6.0;
+		res.p += (fp[0] + 2.0 * fp[1] + 2.0 * fp[2] + fp[3]) * dt / 6.0;
+
+		if (res.p > Consts::p_flash) key_V = 1;
+		if (res.z > 1.0) key_S = 0;
+		if (res.z > pwd.zk) key_Z = 0;
+
+		rs.push_back(res);
+	}
+}
+
+Results::const_iterator DirectSolver::minDeltaPm(const Results &rs)
+{
+	Results::const_iterator itr = rs.begin();
+	double min = fabs(rs.begin()->p - pm);
+
+	for (Results::const_iterator i = rs.begin(); i != rs.end(); i++)
 		if (fabs(i->p - pm) < min && i->p < pm)
 		{
 			min = fabs(i->p - pm);
@@ -581,12 +710,32 @@ Results::iterator DirectSolver::minDeltaPm()
 	return itr;
 }
 
-void DirectSolver::showPowders()
+void DirectSolver::writeResultsToFile(const std::string &path, const Results &rs)
+{
+	Parser::createFile(path);
+	Parser par(path, 'w');
+
+	par.write(pwd.name + "\n");
+	par.write("t\tp\tV\tL\tpsi\tz\n");
+	for (Results::const_iterator itr = rs.begin(); itr != rs.end(); itr++)
+	{
+		par.write(itr->t, '\t');
+		par.write(itr->p, '\t');
+		par.write(itr->V, '\t');
+		par.write(itr->L / d, '\t');
+		par.write(itr->psi, '\t');
+		par.write(itr->z, '\n');
+	}
+}
+
+int DirectSolver::showPowders()
 {
 	int i = 0;
 	cout << "\tСписок порохов:\n";
 	for (Powders::const_iterator itr = pwds.begin(); itr != pwds.end(); itr++)
 		cout << ++i << ") " << *itr << endl;
+
+	return i;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
