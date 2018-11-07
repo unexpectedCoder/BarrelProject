@@ -310,7 +310,34 @@ struct Result
 	double V, L;
 	double psi, z;
 	double Delta, w_q;
+
+	Result() {
+		t = 0.0;
+		L = 0.0;
+		p = Consts::p_flash;
+		psi = 0.0;
+		V = 0.0;
+		z = 0.0;
+	}
+	/*Result(const Result &r) {
+		t = r.t;
+		p = r.p;
+		V = r.V;
+		L = r.L;
+		psi = r.psi;
+		z = r.z;
+	}*/
+
+	friend std::ostream& operator<<(std::ostream &os, const Result &res);
 };
 typedef std::vector<Result> Results;
+
+inline std::ostream& operator<<(std::ostream &os, const Result &r)
+{
+	os << r.t << ' ' << r.Delta << ' ' << r.w_q << ' ' << r.p << ' ' <<
+		r.V << ' ' << r.L << ' ' << ' ' << r.W0 << ' ' << r.W << ' ' << r.z << '\n';
+
+	return os;
+}
 
 #endif

@@ -146,7 +146,7 @@ private:
 	int choosePowder();
 	void searchPmax(double dt, double delta, double wq, Results &rs);
 	Results::const_iterator minDeltaPm(const Results &rs);
-	void sys(double dt, double delta, double wq, Results &rs);
+	void sys(double dt, double delta, double wq, Results &rs, bool cont = false, const Result &st_conds = Result());
 	void writeResultsToFile(const std::string &path, const Results &rs);
 
 	// Система ОДУ
