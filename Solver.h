@@ -27,6 +27,7 @@
 #define BARR_LOG_PATH "files/barrel_log.txt"
 
 #define POWDERS_PATH "powders.xml"
+#define PM_PATH "direct_res/pm"
 
 // -------- ¡¿«Œ¬€…  À¿—— -------- //
 class Solver
@@ -144,10 +145,16 @@ private:
 
 	void fillData();
 	int choosePowder();
-	void searchPmax(double dt, double delta, double wq, Results &rs);
+	void searchPmax(double dt, const Params &params, Results &rs);
+	void continueCalc(double dt, const Result &start, Results &rs);
 	Results::const_iterator minDeltaPm(const Results &rs);
-	void sys(double dt, double delta, double wq, Results &rs, bool cont = false, const Result &st_conds = Result());
+	void rksolve(double dt, const Params &params, Result &res);
 	void writeResultsToFile(const std::string &path, const Results &rs);
+	void findPmLine(double dt);
+
+	void setPathPm(std::string &path, unsigned num = 0);
+	void createFilePm(const std::string &path);
+	void writeFilePm(const std::string &path, const Result &res);
 
 	// —ËÒÚÂÏ‡ Œƒ”
 	double dz(double p) {
@@ -171,7 +178,7 @@ private:
 			(pwd.k - 1.0) * Consts::sigma_T * Consts::nu_T * p * (F0 + pi * d * L) / pwd.R() -
 			pwd.k * p * dW(omega, z, p, V));
 	}
-	///////////////////////////////////////////////////////////////////////////////////////////
+	//
 
 public:
 	DirectSolver(double _pm = 410e6, double _d = 0.1, double _q = 4.35, double _Vd = 1600, double _K = 1.03, double _p0 = 1e7, double _ns = 1) :

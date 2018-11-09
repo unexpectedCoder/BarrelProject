@@ -398,57 +398,22 @@ void DirectSolver::solve()
 	double dt;
 	do
 	{
-		cout << "\tШаг по времени, мкс: "; cin >> dt;
+		cout << "\tШаг по времени, мкс: ";
+		cin >> dt;
 	} while (dt < 1.0 && dt > 1e4);
 	dt *= 1e-6;
 
 	char ch;
-	////////////////////////////// ПОИСК pm ///////////////////////////////
+	// ПОИСК pm
 	cout << "\tНайти данные для линии pm на индикаторной диаграмме? (+/-): ";
 	cin >> ch;
 	if (ch == '+')
-	{
-		showPowders();
-		while (true)
-		{
-			int indx = choosePowder();
-			if (indx == -1) break;
+		findPmLine(dt);
+	//
 
-			// Создание файлов результатов для различных порохов
-			char buf[3];
-			_itoa_s(indx, buf, 10);
-			string path = "direct_res/pm_"; path += buf; path += ".txt";
-			Parser::createFile(path);
-			Parser par(path, 'w');
+	// TODO полное решение
 
-			////////////////////////// Решение системы ОДУ ////////////////////////////
-			par.write(pwd.name + "\n");
-			par.write("Delta\tw/q\tW0\tW\tp\n");
-			for (int i = 0; i < size_d; i++)
-			{
-				Results rs;
-				for (int j = 0; j < size_wq; j++)
-					searchPmax(dt, Delta[i], w_q[j], rs);
-
-				Result res = *minDeltaPm(rs);				// Дальше используется в полном решении (см. ниже)
-				cout << "res = " << res << endl;
-				sys(dt, res.Delta, res.w_q, rs, true, res);
-				// Запись результатов в файл
-				par.write(res.Delta, '\t');
-				par.write(res.w_q, '\t');
-				par.write((rs.end() - 1)->W0 * 1e3, '\t');
-				par.write((rs.end() - 1)->W * 1e3, '\t');
-				par.write(res.p * 1e-6, '\n');
-
-				rs.~vector();
-			}
-
-			cout << "\tРезультаты см. в " << path << ".\n";
-		}
-	}
-	
-	////////////////////////////// ПОЛНОЕ РЕШЕНИЕ ///////////////////////////////
-	cout << "\t<Численное решение ОЗВБ>\n";
+	/*cout << "\t<Численное решение ОЗВБ>\n";
 	showPowders();
 	while (true)
 	{
@@ -486,12 +451,12 @@ void DirectSolver::solve()
 				path = "direct_res/res_"; path += buf1; path += "_"; path += buf2; path += "_"; path += buf3; path += ".txt";
 				// Запись в файл
 				writeResultsToFile(path, rs);
-				*/
+				
 
 				rs.~vector();
 			}
 		cout << "\tРезультаты см. в " << path << ".\n";
-	}
+	}*/
 }
 
 void DirectSolver::fillData()
@@ -535,6 +500,99 @@ void DirectSolver::fillData()
 		w_q[i] = from + i * step;
 }
 
+void DirectSolver::findPmLine(double dt)
+{
+	showPowders();								// Выводит список порохов для удобства выбора
+
+	while (true)
+	{
+		int indx = choosePowder();
+		if (indx < 0) break;				// Условие выхода из цикла
+
+		// Инициализирует особый путь для записи результатов
+		string path;
+		setPathPm(path, indx);
+		createFilePm(path);
+
+		// Решение системы ОДУ
+		for (int i = 0; i < size_d; i++)
+		{
+			Results rs;
+			Params params;
+
+			for (int j = 0; j < size_wq; j++)
+			{
+				params.Delta = Delta[i];
+				params.w_q = w_q[j];
+				params.fi = K + 1.0 / 1.3 * w_q[j];
+				params.W0 = q * w_q[j] / Delta[i];
+				params.W = params.W0 - q * params.w_q / pwd.delta;
+				params.F0 = 4.0 * params.W0 / d + 2.0 * S;
+
+				searchPmax(dt, params, rs);
+			}
+			Result res = *minDeltaPm(rs);
+
+			rs.clear();
+			continueCalc(dt, res, rs);
+			res.W0 = rs.back().W0;
+			res.W = rs.back().W;
+
+			writeFilePm(path, res);
+		}
+		cout << "\tРезультаты см. в " << path << ".\n";
+	}
+}
+
+void DirectSolver::setPathPm(string &path, unsigned num)
+{
+	char buf[3];
+	_itoa_s(num, buf, 10);
+
+	if (!path.empty() && num != 0)
+	{
+		path += buf;
+		path += ".txt";
+		return;
+	}
+	else
+	{
+		if (num == 0)
+		{
+			path = PM_PATH;
+			path += ".txt";
+			return;
+		}
+		else
+		{
+			path = PM_PATH;
+			path += buf;
+			path += ".txt";
+			return;
+		}
+	}
+}
+
+void DirectSolver::createFilePm(const string &path)
+{
+	Parser::createFile(path);
+
+	Parser par(path, 'w');
+	par.write(pwd.name + "\n");
+	par.write("Delta\tw/q\tW0\tW\tp\n");
+}
+
+void DirectSolver::writeFilePm(const string &path, const Result &res)
+{
+	Parser par(path, 'a');
+
+	par.write(res.Delta, '\t');
+	par.write(res.w_q, '\t');
+	par.write(res.W0 * 1e3, '\t');
+	par.write(res.W * 1e3, '\t');
+	par.write(res.p * 1e-6, '\n');
+}
+
 int DirectSolver::choosePowder()
 {
 	int i;
@@ -549,154 +607,98 @@ int DirectSolver::choosePowder()
 	return i + 1;
 }
 
-void DirectSolver::searchPmax(double dt, double delta, double wq, Results &rs)
+void DirectSolver::searchPmax(double dt, const Params &params, Results &rs)
 {
-	// Предварительные расчеты
-	double buf_p = 0.0;
-	double fi = K + 1.0 / 1.3 * wq;
-	double W0 = q * wq / delta;
-	double F0 = 4.0 * W0 / d + 2.0 * S;
-
 	// Нач. условия
 	Result res;
-	res.Delta = delta;
-	res.w_q = wq;
-	res.W = W0 - q * wq / pwd.delta;
-	res.W0 = W0;
-	
-	// Решение системы
-	double fz[4], fpsi[4], fL[4], fV[4], fW[4], fp[4];
-	while (res.p > buf_p)
+	res.Delta = params.Delta;
+	res.w_q = params.w_q;
+	res.W = params.W;
+	res.W0 = params.W0;
+
+	double buf_p = 0.0;					// Чтобы поймать достижение max(p)
+	while (buf_p < res.p)
 	{
 		buf_p = res.p;
-
-		if (res.p > p0 || res.V > 0) key_V = 1;
-		else key_V = 0;
-		if (res.z > 1) key_S = 0;
-		else key_S = 1;
-		if (res.z > pwd.zk) key_Z = 0;
-		else key_Z = 1;
-
-		fz[0] = dz(res.p);
-		fpsi[0] = dpsi(res.z, res.p);
-		fL[0] = dL(res.V);
-		fV[0] = dV(res.p, wq, fi);
-		fW[0] = dW(q * wq, res.z, res.p, res.V);
-		fp[0] = dp(res.W, q * wq, delta, res.p, res.z, res.L, res.V, F0);
-
-		fz[1] = dz(res.p + 0.5 * fp[0] * dt);
-		fpsi[1] = dpsi(res.z + 0.5 * fz[0] * dt, res.p + 0.5 * fp[0] * dt);
-		fL[1] = dL(res.V + 0.5 * fV[0] * dt);
-		fV[1] = dV(res.p + 0.5 * fp[0] * dt, wq, fi);
-		fW[1] = dW(q * wq, res.z + 0.5 * fz[0] * dt, res.p + 0.5 * fp[0] * dt, res.V + 0.5 * fV[0] * dt);
-		fp[1] = dp(res.W + 0.5 * fW[0] * dt, q * wq, delta, res.p + 0.5 * fp[0] * dt,
-			res.z + 0.5 * fz[0] * dt, res.L + 0.5 * fL[0] * dt, res.V + 0.5 * fV[0] * dt, F0);
-
-		fz[2] = dz(res.p + 0.5 * fp[1] * dt);
-		fpsi[2] = dpsi(res.z + 0.5 * fz[1] * dt, res.p + 0.5 * fp[1] * dt);
-		fL[2] = dL(res.V + 0.5 * fV[1] * dt);
-		fV[2] = dV(res.p + 0.5 * fp[1] * dt, wq, fi);
-		fW[2] = dW(q * wq, res.z + 0.5 * fz[1] * dt, res.p + 0.5 * fp[1] * dt, res.V + 0.5 * fV[1] * dt);
-		fp[2] = dp(res.W + 0.5 * fW[1] * dt, q * wq, delta, res.p + 0.5 * fp[1] * dt,
-			res.z + 0.5 * fz[1] * dt, res.L + 0.5 * fL[1] * dt, res.V + 0.5 * fV[1] * dt, F0);
-
-		fz[3] = dz(res.p + fp[2] * dt);
-		fpsi[3] = dpsi(res.z + fz[2] * dt, res.p + fp[2] * dt);
-		fL[3] = dL(res.V + fV[2] * dt);
-		fV[3] = dV(res.p + fp[2] * dt, wq, fi);
-		fW[3] = dW(q * wq, res.z + fz[2] * dt, res.p + fp[2] * dt, res.V + fV[2] * dt);
-		fp[3] = dp(res.W + fW[2] * dt, q * wq, delta, res.p + fp[2] * dt,
-			res.z + fz[2] * dt, res.L + fL[2] * dt, res.V + fV[2] * dt, F0);
-
-		res.t += dt;
-		res.z += (fz[0] + 2.0 * fz[1] + 2.0 * fz[2] + fz[3]) * dt / 6.0;
-		res.psi += (fpsi[0] + 2.0 * fpsi[1] + 2.0 * fpsi[2] + fpsi[3]) * dt / 6.0;
-		res.L += (fL[0] + 2.0 * fL[1] + 2.0 * fL[2] + fL[3]) * dt / 6.0;
-		res.V += (fV[0] + 2.0 * fV[1] + 2.0 * fV[2] + fV[3]) * dt / 6.0;
-		res.W += (fW[0] + 2.0 * fW[1] + 2.0 * fW[2] + fW[3]) * dt / 6.0;
-		res.p += (fp[0] + 2.0 * fp[1] + 2.0 * fp[2] + fp[3]) * dt / 6.0;
+		rksolve(dt, params, res);
 	}
-
 	rs.push_back(res);
 }
 
-void DirectSolver::sys(double dt, double delta, double wq, Results &rs, bool cont, const Result &st_conds)
+void DirectSolver::continueCalc(double dt, const Result &start, Results &rs)
 {
-	// Предварительные расчеты
-	double fi = K + 1.0 / 1.3 * wq;
-	double W0 = q * wq / delta;
-	double F0 = 4.0 * W0 / d + 2.0 * S;
+	Result res = start;
 
-	// Инициализация н.у.
-	Result res;
-	if (cont == false)
-	{
-		res.Delta = delta;
-		res.w_q = wq;
-		res.W = W0 - q * wq / pwd.delta;
-		res.W0 = W0;
-	}
-	else
-		res = st_conds;
-	
+	Params params;
+	params.Delta = res.Delta;
+	params.w_q = res.w_q;
+	params.fi = K + 1.0 / 1.3 * params.w_q;
+	params.W0 = q * res.w_q / params.Delta;
+	params.W = params.W0 - q * params.w_q / pwd.delta;
+	params.F0 = 4.0 * params.W0 / d + 2.0 * S;
+
 	double buf_V = res.V;
-
-	// Решение системы ОДУ
 	rs.push_back(res);
-	double fz[4], fpsi[4], fL[4], fV[4], fW[4], fp[4];
 	while (res.V < Vd)
 	{
-		if (res.p > p0 || res.V > 0) key_V = 1;
-		else key_V = 0;
-		if (res.z > 1) key_S = 0;
-		else key_S = 1;
-		if (res.z > pwd.zk) key_Z = 0;
-		else key_Z = 1;
-
-		fz[0] = dz(res.p);
-		fpsi[0] = dpsi(res.z, res.p);
-		fL[0] = dL(res.V);
-		fV[0] = dV(res.p, wq, fi);
-		fW[0] = dW(q * wq, res.z, res.p, res.V);
-		fp[0] = dp(res.W, q * wq, delta, res.p, res.z, res.L, res.V, F0);
-
-		fz[1] = dz(res.p + 0.5 * fp[0] * dt);
-		fpsi[1] = dpsi(res.z + 0.5 * fz[0] * dt, res.p + 0.5 * fp[0] * dt);
-		fL[1] = dL(res.V + 0.5 * fV[0] * dt);
-		fV[1] = dV(res.p + 0.5 * fp[0] * dt, wq, fi);
-		fW[1] = dW(q * wq, res.z + 0.5 * fz[0] * dt, res.p + 0.5 * fp[0] * dt, res.V + 0.5 * fV[0] * dt);
-		fp[1] = dp(res.W + 0.5 * fW[0] * dt, q * wq, delta, res.p + 0.5 * fp[0] * dt,
-			res.z + 0.5 * fz[0] * dt, res.L + 0.5 * fL[0] * dt, res.V + 0.5 * fV[0] * dt, F0);
-
-		fz[2] = dz(res.p + 0.5 * fp[1] * dt);
-		fpsi[2] = dpsi(res.z + 0.5 * fz[1] * dt, res.p + 0.5 * fp[1] * dt);
-		fL[2] = dL(res.V + 0.5 * fV[1] * dt);
-		fV[2] = dV(res.p + 0.5 * fp[1] * dt, wq, fi);
-		fW[2] = dW(q * wq, res.z + 0.5 * fz[1] * dt, res.p + 0.5 * fp[1] * dt, res.V + 0.5 * fV[1] * dt);
-		fp[2] = dp(res.W + 0.5 * fW[1] * dt, q * wq, delta, res.p + 0.5 * fp[1] * dt,
-			res.z + 0.5 * fz[1] * dt, res.L + 0.5 * fL[1] * dt, res.V + 0.5 * fV[1] * dt, F0);
-
-		fz[3] = dz(res.p + fp[2] * dt);
-		fpsi[3] = dpsi(res.z + fz[2] * dt, res.p + fp[2] * dt);
-		fL[3] = dL(res.V + fV[2] * dt);
-		fV[3] = dV(res.p + fp[2] * dt, wq, fi);
-		fW[3] = dW(q * wq, res.z + fz[2] * dt, res.p + fp[2] * dt, res.V + fV[2] * dt);
-		fp[3] = dp(res.W + fW[2] * dt, q * wq, delta, res.p + fp[2] * dt,
-			res.z + fz[2] * dt, res.L + fL[2] * dt, res.V + fV[2] * dt, F0);
-
-		res.t += dt;
-		res.z += (fz[0] + 2.0 * fz[1] + 2.0 * fz[2] + fz[3]) * dt / 6.0;
-		res.psi += (fpsi[0] + 2.0 * fpsi[1] + 2.0 * fpsi[2] + fpsi[3]) * dt / 6.0;
-		res.L += (fL[0] + 2.0 * fL[1] + 2.0 * fL[2] + fL[3]) * dt / 6.0;
-		res.V += (fV[0] + 2.0 * fV[1] + 2.0 * fV[2] + fV[3]) * dt / 6.0;
-		res.W += (fW[0] + 2.0 * fW[1] + 2.0 * fW[2] + fW[3]) * dt / 6.0;
-		res.p += (fp[0] + 2.0 * fp[1] + 2.0 * fp[2] + fp[3]) * dt / 6.0;
-
+		rksolve(dt, params, res);
 		rs.push_back(res);
 
-		if (res.V - buf_V < eps && res.V > 0) break;
+		if (res.V - buf_V < 0.01 && res.V > 0) return;	// Если для какого-либо пороха
+																										// невозможно достичь заданной скорости Vd
 		buf_V = res.V;
 	}
+}
+
+void DirectSolver::rksolve(double dt, const Params &params, Result &res)
+{
+	RK_Coeffs coeffs;
+
+	if (res.p > p0 || res.V > 0) key_V = 1;
+	else key_V = 0;
+	if (res.z > 1) key_S = 0;
+	else key_S = 1;
+	if (res.z > pwd.zk) key_Z = 0;
+	else key_Z = 1;
+
+	coeffs.fz[0] = dt * dz(res.p);
+	coeffs.fpsi[0] = dt * dpsi(res.z, res.p);
+	coeffs.fL[0] = dt * dL(res.V);
+	coeffs.fV[0] = dt * dV(res.p, params.w_q, params.fi);
+	coeffs.fW[0] = dt * dW(q * params.w_q, res.z, res.p, res.V);
+	coeffs.fp[0] = dt * dp(res.W, q * params.w_q, params.Delta, res.p, res.z, res.L, res.V, params.F0);
+
+	coeffs.fz[1] = dt * dz(res.p + 0.5 * coeffs.fp[0]);
+	coeffs.fpsi[1] = dt * dpsi(res.z + 0.5 * coeffs.fz[0], res.p + 0.5 * coeffs.fp[0]);
+	coeffs.fL[1] = dt * dL(res.V + 0.5 * coeffs.fV[0]);
+	coeffs.fV[1] = dt * dV(res.p + 0.5 * coeffs.fp[0], params.w_q, params.fi);
+	coeffs.fW[1] = dt * dW(q * params.w_q, res.z + 0.5 * coeffs.fz[0], res.p + 0.5 * coeffs.fp[0], res.V + 0.5 * coeffs.fV[0]);
+	coeffs.fp[1] = dt * dp(res.W + 0.5 * coeffs.fW[0], q * params.w_q, params.Delta, res.p + 0.5 * coeffs.fp[0],
+		res.z + 0.5 * coeffs.fz[0], res.L + 0.5 * coeffs.fL[0], res.V + 0.5 * coeffs.fV[0], params.F0);
+
+	coeffs.fz[2] = dt * dz(res.p + 0.5 * coeffs.fp[1]);
+	coeffs.fpsi[2] = dt * dpsi(res.z + 0.5 * coeffs.fz[1], res.p + 0.5 * coeffs.fp[1]);
+	coeffs.fL[2] = dt * dL(res.V + 0.5 * coeffs.fV[1]);
+	coeffs.fV[2] = dt * dV(res.p + 0.5 * coeffs.fp[1], params.w_q, params.fi);
+	coeffs.fW[2] = dt * dW(q * params.w_q, res.z + 0.5 * coeffs.fz[1], res.p + 0.5 * coeffs.fp[1], res.V + 0.5 * coeffs.fV[1]);
+	coeffs.fp[2] = dt * dp(res.W + 0.5 * coeffs.fW[1], q * params.w_q, params.Delta, res.p + 0.5 * coeffs.fp[1],
+		res.z + 0.5 * coeffs.fz[1], res.L + 0.5 * coeffs.fL[1], res.V + 0.5 * coeffs.fV[1], params.F0);
+
+	coeffs.fz[3] = dt * dz(res.p + coeffs.fp[2]);
+	coeffs.fpsi[3] = dt * dpsi(res.z + coeffs.fz[2], res.p + coeffs.fp[2]);
+	coeffs.fL[3] = dt * dL(res.V + coeffs.fV[2]);
+	coeffs.fV[3] = dt * dV(res.p + coeffs.fp[2], params.w_q, params.fi);
+	coeffs.fW[3] = dt * dW(q * params.w_q, res.z + coeffs.fz[2], res.p + coeffs.fp[2], res.V + coeffs.fV[2]);
+	coeffs.fp[3] = dt * dp(res.W + coeffs.fW[2], q * params.w_q, params.Delta, res.p + coeffs.fp[2],
+		res.z + coeffs.fz[2], res.L + coeffs.fL[2], res.V + coeffs.fV[2], params.F0);
+
+	res.t += dt;
+	res.z += (coeffs.fz[0] + 2.0 * coeffs.fz[1] + 2.0 * coeffs.fz[2] + coeffs.fz[3]) / 6.0;
+	res.psi += (coeffs.fpsi[0] + 2.0 * coeffs.fpsi[1] + 2.0 * coeffs.fpsi[2] + coeffs.fpsi[3]) / 6.0;
+	res.L += (coeffs.fL[0] + 2.0 * coeffs.fL[1] + 2.0 * coeffs.fL[2] + coeffs.fL[3]) / 6.0;
+	res.V += (coeffs.fV[0] + 2.0 * coeffs.fV[1] + 2.0 * coeffs.fV[2] + coeffs.fV[3]) / 6.0;
+	res.W += (coeffs.fW[0] + 2.0 * coeffs.fW[1] + 2.0 * coeffs.fW[2] + coeffs.fW[3]) / 6.0;
+	res.p += (coeffs.fp[0] + 2.0 * coeffs.fp[1] + 2.0 * coeffs.fp[2] + coeffs.fp[3]) / 6.0;
 }
 
 Results::const_iterator DirectSolver::minDeltaPm(const Results &rs)

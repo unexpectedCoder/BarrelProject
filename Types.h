@@ -319,15 +319,8 @@ struct Result
 		V = 0.0;
 		z = 0.0;
 	}
-	/*Result(const Result &r) {
-		t = r.t;
-		p = r.p;
-		V = r.V;
-		L = r.L;
-		psi = r.psi;
-		z = r.z;
-	}*/
 
+	Result& operator=(const Result &other);
 	friend std::ostream& operator<<(std::ostream &os, const Result &res);
 };
 typedef std::vector<Result> Results;
@@ -339,5 +332,27 @@ inline std::ostream& operator<<(std::ostream &os, const Result &r)
 
 	return os;
 }
+
+struct Params
+{
+	double
+		Delta,
+		w_q,
+		W0,
+		W,
+		fi,
+		F0;
+};
+
+struct RK_Coeffs
+{
+	double
+		fz[4],
+		fpsi[4],
+		fL[4],
+		fV[4],
+		fW[4],
+		fp[4];
+};
 
 #endif
