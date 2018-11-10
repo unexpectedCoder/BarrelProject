@@ -59,7 +59,13 @@ int main()
 	{
 		DirectSolver *dirsol = new DirectSolver();
 		dirsol->printInfo();
-		dirsol->solve();
+
+		try {
+			dirsol->solve();
+		}
+		catch (const string &ex) {
+			cout << ex << endl;
+		}
 		dirsol->printResults();
 	}
 

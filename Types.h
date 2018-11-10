@@ -344,15 +344,4 @@ struct Params
 		F0;
 };
 
-struct RK_Coeffs
-{
-	double
-		fz[4],
-		fpsi[4],
-		fL[4],
-		fV[4],
-		fW[4],
-		fp[4];
-};
-
 #endif

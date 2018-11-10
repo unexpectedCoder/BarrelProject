@@ -28,6 +28,22 @@
 
 #define POWDERS_PATH "powders.xml"
 #define PM_PATH "direct_res/pm"
+#define I_DIAG_PATH "direct_res/IDiag"
+
+class Error
+{
+	std::string mess;
+
+public:
+	Error() : mess("No errors.") {}
+	~Error() {
+		mess.~basic_string();
+	}
+
+	const std::string& sendMess(const std::string &_mess) {
+		return mess = _mess;
+	}
+};
 
 // -------- ¡¿«Œ¬€…  À¿—— -------- //
 class Solver
@@ -63,8 +79,9 @@ public:
 	}
 	void solve();
 	void printResults() {
-		std::cout << "\t—“¿“”— ¬€œŒÀÕ≈Õ»ﬂ: " << status << ".\n";
-		std::cout << "\t–≈«”À‹“¿“€: ÒÏ. Ù‡ÈÎ " << TEST_PATH << ".\n\n";
+		std::cout << "—“¿“”— ¬€œŒÀÕ≈Õ»ﬂ: " << status << ".\n";
+		if (status != "failed")
+			std::cout << "–≈«”À‹“¿“€: ÒÏ. Ù‡ÈÎ " << TEST_PATH << ".\n\n";
 	}
 
 	~TestSolver() {
@@ -89,8 +106,9 @@ public:
 	}
 	void solve();
 	void printResults() {
-		std::cout << "\t—“¿“”— ¬€œŒÀÕ≈Õ»ﬂ: " << status << ".\n";
-		std::cout << "\t–≈«”À‹“¿“€: ÒÏ. Ù‡ÈÎ " << ANALOGS_PATH << ".\n\n";
+		std::cout << "—“¿“”— ¬€œŒÀÕ≈Õ»ﬂ: " << status << ".\n";
+		if (status != "failed")
+			std::cout << "–≈«”À‹“¿“€: ÒÏ. Ù‡ÈÎ " << ANALOGS_PATH << ".\n\n";
 	}
 
 	~AnalogsSolver() {
@@ -126,21 +144,23 @@ public:
 	void calcMaxPressure();
 	void solve();
 	void printResults() {
-		std::cout << "\t—“¿“”— ¬€œŒÀÕ≈Õ»ﬂ: " << status << ".\n";
-		std::cout << "\t–≈«”À‹“¿“€: ÒÏ. ‚ Ô‡ÔÍÂ results.";
+		std::cout << "—“¿“”— ¬€œŒÀÕ≈Õ»ﬂ: " << status << ".\n";
+		if (status != "failed")
+			std::cout << "–≈«”À‹“¿“€: ÒÏ. ‚ Ô‡ÔÍÂ results.\n\n";
 	}
 };
 
 class DirectSolver : public Solver
 {
 private:
+	unsigned size_d, size_wq;
+	Error err;
 	std::string status;
 	Powder pwd;
 	Powders pwds;
 	double *Delta, *w_q;
 	double d, q, Vd, ns, S, K;
 	double p0, pm;
-	int size_d, size_wq;
 	int key_V, key_S, key_Z;
 
 	void fillData();
@@ -148,13 +168,16 @@ private:
 	void searchPmax(double dt, const Params &params, Results &rs);
 	void continueCalc(double dt, const Result &start, Results &rs);
 	Results::const_iterator minDeltaPm(const Results &rs);
+	
+	void calcPmLine(double dt);
+	void calcIndicatDiag(double dt);
 	void rksolve(double dt, const Params &params, Result &res);
-	void writeResultsToFile(const std::string &path, const Results &rs);
-	void findPmLine(double dt);
 
-	void setPathPm(std::string &path, unsigned num = 0);
-	void createFilePm(const std::string &path);
+	void setPathPm(const std::string &base_path, std::string &res_path, unsigned num = 0);
+	void createFile(const std::string &path, const std::string &head = "");
 	void writeFilePm(const std::string &path, const Result &res);
+	void writeResultsToFile(const std::string &path, const Results &rs);
+	void writeFileDiag(const std::string &path, const Result &res);
 
 	// —ËÒÚÂÏ‡ Œƒ”
 	double dz(double p) {
@@ -201,8 +224,9 @@ public:
 	int showPowders();
 
 	void printResults() {
-		std::cout << "\t—“¿“”— ¬€œŒÀÕ≈Õ»ﬂ: " << status << ".\n";
-		std::cout << "\t–≈«”À‹“¿“€: ÒÏ. ‚ Ô‡ÔÍÂ direct_res.";
+		std::cout << "—“¿“”— ¬€œŒÀÕ≈Õ»ﬂ: " << status << ".\n";
+		if (status != "failed")
+			std::cout << "–≈«”À‹“¿“€: ÒÏ. ‚ Ô‡ÔÍÂ direct_res.\n\n";
 	}
 };
 
