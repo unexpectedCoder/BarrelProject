@@ -306,12 +306,24 @@ inline std::ostream& operator<<(std::ostream &os, const Powder &p)
 struct Result
 {
 	double t;
-	double p, W, W0;
+	double p, p_max;
+	double W, W0, W_ch;
 	double V, L;
 	double psi, z;
 	double Delta, w_q;
+	double fi, F0;
 
-	Result() {
+	/*Result() {
+		t = 0.0;
+		L = 0.0;
+		p = Consts::p_flash;
+		psi = 0.0;
+		V = 0.0;
+		z = 0.0;
+	}*/
+
+	Result& operator=(const Result &other);
+	void byDefault() {
 		t = 0.0;
 		L = 0.0;
 		p = Consts::p_flash;
@@ -319,8 +331,6 @@ struct Result
 		V = 0.0;
 		z = 0.0;
 	}
-
-	Result& operator=(const Result &other);
 	friend std::ostream& operator<<(std::ostream &os, const Result &res);
 };
 typedef std::vector<Result> Results;
@@ -332,16 +342,5 @@ inline std::ostream& operator<<(std::ostream &os, const Result &r)
 
 	return os;
 }
-
-struct Params
-{
-	double
-		Delta,
-		w_q,
-		W0,
-		W,
-		fi,
-		F0;
-};
 
 #endif

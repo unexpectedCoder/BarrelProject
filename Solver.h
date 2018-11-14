@@ -29,6 +29,7 @@
 #define POWDERS_PATH "powders.xml"
 #define PM_PATH "direct_res/pm"
 #define I_DIAG_PATH "direct_res/IDiag"
+#define LM_PATH "direct_res/lm"
 
 class Error
 {
@@ -124,7 +125,6 @@ private:
 	std::string status;
 	std::vector<double> Delta;
 	std::vector<double> eta_K;
-	static int file_count;
 
 	void makeTableTxt(const Barrel &barr, double pm_nround, const std::string &path);
 	void fillBarrelData(const std::string &txt, std::vector<double> &data);
@@ -161,23 +161,28 @@ private:
 	double *Delta, *w_q;
 	double d, q, Vd, ns, S, K;
 	double p0, pm;
+	double l_d_max;
 	int key_V, key_S, key_Z;
 
-	void fillData();
+	void fillDelta();
+	void fill_wq();
 	int choosePowder();
-	void searchPmax(double dt, const Params &params, Results &rs);
-	void continueCalc(double dt, const Result &start, Results &rs);
-	Results::const_iterator minDeltaPm(const Results &rs);
+	void searchPmax(double dt, double delta, Result &res);
+	void continueCalc(double dt, Result &res);
 	
-	void calcPmLine(double dt);
-	void calcIndicatDiag(double dt);
-	void rksolve(double dt, const Params &params, Result &res);
+	void set_l_d_max();
+	void calcPmLine(double dt, unsigned indx);
+	void calcIndicatDiag(double dt, unsigned indx);
+	void rksolve(double dt, Result &res);
 
-	void setPathPm(const std::string &base_path, std::string &res_path, unsigned num = 0);
+	void setPath(const std::string &base_path, std::string &res_path, unsigned num = 0);
 	void createFile(const std::string &path, const std::string &head = "");
 	void writeFilePm(const std::string &path, const Result &res);
 	void writeResultsToFile(const std::string &path, const Results &rs);
 	void writeFileDiag(const std::string &path, const Result &res);
+
+	double funcW0(double w);
+	void writeLmFile(unsigned indx = 0);
 
 	// Система ОДУ
 	double dz(double p) {
