@@ -479,16 +479,7 @@ void DirectSolver::solve()
 	cout << "\t<Функция прямого решателя>\n";
 	set_l_d_max();
 	fillDelta();
-
-	double dt;
-	cout << "\tШаг по времени, мкс: ";
-	cin >> dt;
-	if (dt < 1.0 || dt > 5e4)
-	{
-		status = "failed";
-		throw err.sendMess("Error: time step must be > 1.0 or < 5e+4 mcsec!");
-	}
-	dt *= 1e-6;
+	double dt = setTimeStep();
 
 	showPowders();								// Выводит список порохов для удобства выбора
 	while (true)
@@ -537,6 +528,20 @@ void DirectSolver::fillDelta()
 		Delta[i] = from + i * step;
 }
 
+double DirectSolver::setTimeStep()
+{
+	double dt;
+	cout << "\tШаг по времени, мкс: ";
+	cin >> dt;
+	if (dt < 1.0 || dt > 5e4)
+	{
+		status = "failed";
+		throw err.sendMess("Error: time step must be > 1.0 or < 5e+4 mcsec!");
+	}
+
+	return dt * 1e-6;
+}
+
 int DirectSolver::showPowders()
 {
 	int i = 0;
@@ -574,17 +579,16 @@ void DirectSolver::calcPmLine(double dt, unsigned indx)
 	for (unsigned i = 0; i < size_d; i++)
 	{
 		Result res;
-		searchPmax(dt, Delta[i], res);
+		searchPmaxConds(dt, Delta[i], res);
 		continueCalc(dt, res);
 
 		cout << "\t\t " << res.w_q << '\n';
 		writeFilePm(path, res);
 	}
-
 	cout << "\tРезультаты см. в " << path << ".\n";
 }
 
-void DirectSolver::searchPmax(double dt, double delta, Result &res)
+void DirectSolver::searchPmaxConds(double dt, double delta, Result &res)
 {
 	res.Delta = delta;
 	res.w_q = 1.5;						// Начальное приближение
@@ -594,7 +598,7 @@ void DirectSolver::searchPmax(double dt, double delta, Result &res)
 	res.F0 = 4.0 * res.W0 / d + 2.0 * S;
 
 	double buf_w_q = 0.0;
-	while (fabs(res.w_q - buf_w_q) > 1e-5)
+	while (true)
 	{
 		res.byDefault();
 
@@ -604,17 +608,18 @@ void DirectSolver::searchPmax(double dt, double delta, Result &res)
 			buf_p = res.p;
 			rksolve(dt, res);
 		}
+		res.p_max = res.p;
+
+		if (fabs(res.w_q - buf_w_q) < 1e-3)
+			break;
 
 		buf_w_q = res.w_q;
-
 		res.w_q *= sqrt(pm / res.p);
 		res.fi = K + 1.0 / 3.0 * res.w_q;
 		res.W0 = q * res.w_q / res.Delta;
 		res.W = res.W0 - q * res.w_q / pwd.delta;
 		res.F0 = 4.0 * res.W0 / d + 2.0 * S;
 	}
-	
-	res.p_max = res.p;
 }
 
 void DirectSolver::continueCalc(double dt, Result &res)
@@ -623,8 +628,8 @@ void DirectSolver::continueCalc(double dt, Result &res)
 	while (res.V < Vd)
 	{
 		rksolve(dt, res);
-		if (res.V - buf_V < 0.01 && res.V > 0)	// Если для какого-либо пороха
-			return;																// невозможно достичь заданной скорости Vd
+		if (res.V - buf_V < 0.001 && res.V > 0.0)	// Если для какого-либо пороха
+			break;																	// невозможно достичь заданной скорости Vd
 		buf_V = res.V;
 	}
 	res.W_ch = res.W0 + S * res.L;
@@ -637,7 +642,7 @@ void DirectSolver::writeFilePm(const string &path, const Result &res)
 	par.write(res.Delta, '\t');
 	par.write(res.w_q, '\t');
 	par.write(res.W0 * 1e3, '\t');
-	par.write(res.W * 1e3, '\t');
+	par.write(res.W_ch * 1e3, '\t');
 	par.write(res.p_max * 1e-6, '\n');
 }
 
@@ -675,13 +680,14 @@ void DirectSolver::calcIndicatDiag(double dt, unsigned indx)
 {
 	string path;
 	setPath(I_DIAG_PATH, path, indx);
-	createFile(path, "t\tDelta\tw/q\tV\tL/d\tW0\tW\tpsi\tz\tp");
+	createFile(path, "t\tDelta\tw/q\tV\tL/d\tW0\tW\tpsi\tz\tp_max");
 
 	for (unsigned i = 0; i < size_d; i++)
 		for (unsigned j = 0; j < size_wq; j++)
 		{
-			// Начальные условия
 			Result res;
+
+			// Начальные условия
 			res.byDefault();
 			res.Delta = Delta[i];
 			res.w_q = w_q[j];
@@ -690,14 +696,23 @@ void DirectSolver::calcIndicatDiag(double dt, unsigned indx)
 			res.W = res.W0 - q * res.w_q / pwd.delta;
 			res.F0 = 4.0 * res.W0 / d + 2.0 * S;
 
-			while (res.V < Vd)
-				rksolve(dt, res);
-			res.W_ch = res.W0 + S * res.L;
+			calcToPmax(dt, res);
+			continueCalc(dt, res);
 
 			writeFileDiag(path, res);
 		}
-
 	cout << "\tРезультаты см. в " << path << ".\n";
+}
+
+void DirectSolver::calcToPmax(double dt, Result &res)
+{
+	double buf_p = 0.0;			// Чтобы поймать достижение max(p)
+	while (buf_p < res.p)
+	{
+		buf_p = res.p;
+		rksolve(dt, res);
+	}
+	res.p_max = res.p;
 }
 
 void DirectSolver::rksolve(double dt, Result &res)
@@ -764,7 +779,7 @@ void DirectSolver::writeFileDiag(const string &path, const Result &res)
 	par.write(res.W_ch * 1e3, '\t');
 	par.write(res.psi, '\t');
 	par.write(res.z, '\t');
-	par.write(res.p * 1e-6, '\n');
+	par.write(res.p_max * 1e-6, '\n');
 }
 
 void DirectSolver::writeResultsToFile(const std::string &path, const Results &rs)

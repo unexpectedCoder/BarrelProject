@@ -166,8 +166,10 @@ private:
 
 	void fillDelta();
 	void fill_wq();
+	double setTimeStep();
 	int choosePowder();
-	void searchPmax(double dt, double delta, Result &res);
+	void searchPmaxConds(double dt, double delta, Result &res);
+	void calcToPmax(double dt, Result &res);
 	void continueCalc(double dt, Result &res);
 	
 	void set_l_d_max();
