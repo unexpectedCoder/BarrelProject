@@ -474,6 +474,35 @@ void AnaliticSolver::writeBarrelsToFile()
 	}
 }
 
+void DirectSolver::makeTest(const TestParams &tp)
+{
+	Parser::createFile(DIRSOL_TEST_PATH);
+	Parser par(DIRSOL_TEST_PATH, 'w');
+
+	double dt = tp.dt;
+	pwd = tp.pwd;
+
+	Result res;
+	res.byDefault();
+	res.Delta = tp.Delta;
+	res.w_q = tp.w_q;						// Начальное приближение
+	res.fi = K + 1.0 / 3.0 * res.w_q;
+	res.W0 = q * res.w_q / res.Delta;
+	res.W = res.W0 - q * res.w_q / pwd.delta;
+	res.F0 = 4.0 * res.W0 / d + 2.0 * S;
+
+	calcToPmax(dt, res);
+	par.write("p_max = ", res.p_max * 1e-6);
+
+	continueCalc(dt, res);
+	par.write("Vd = ", res.V);
+	par.write("Ld = ", res.L);
+	par.write("W0 = ", res.W0 * 1e3);
+	par.write("W_ch = ", res.W_ch * 1e3);
+
+	cout << "\tРезультаты см. в " << DIRSOL_TEST_PATH << endl;
+}
+
 void DirectSolver::solve()
 {
 	cout << "\t<Функция прямого решателя>\n";
@@ -602,14 +631,7 @@ void DirectSolver::searchPmaxConds(double dt, double delta, Result &res)
 	{
 		res.byDefault();
 
-		double buf_p = 0.0;			// Чтобы поймать достижение max(p)
-		while (buf_p < res.p)
-		{
-			buf_p = res.p;
-			rksolve(dt, res);
-		}
-		res.p_max = res.p;
-
+		calcToPmax(dt, res);
 		if (fabs(res.w_q - buf_w_q) < 1e-3)
 			break;
 
@@ -628,7 +650,7 @@ void DirectSolver::continueCalc(double dt, Result &res)
 	while (res.V < Vd)
 	{
 		rksolve(dt, res);
-		if (res.V - buf_V < 0.001 && res.V > 0.0)	// Если для какого-либо пороха
+		if (res.V - buf_V < 0.0001 && res.V > 0)	// Если для какого-либо пороха
 			break;																	// невозможно достичь заданной скорости Vd
 		buf_V = res.V;
 	}
@@ -706,12 +728,14 @@ void DirectSolver::calcIndicatDiag(double dt, unsigned indx)
 
 void DirectSolver::calcToPmax(double dt, Result &res)
 {
-	double buf_p = 0.0;			// Чтобы поймать достижение max(p)
-	while (buf_p < res.p)
+	Result buf;			// Чтобы поймать достижение max(p)
+	buf.p = 0.0;
+	while (buf.p < res.p)
 	{
-		buf_p = res.p;
+		buf = res;
 		rksolve(dt, res);
 	}
+	res = buf;
 	res.p_max = res.p;
 }
 

@@ -149,21 +149,6 @@ Matrix& Matrix::T()
 	return *this;
 }
 
-Result& Result::operator=(const Result &other)
-{
-	if (this == &other)
-		return *this;
-
-	t = other.t;
-	L = other.L;
-	p = other.p;
-	psi = other.psi;
-	V = other.V;
-	z = other.z;
-
-	return *this;
-}
-
 Matrix& Matrix::zeros()
 {
 	for (int i = 0; i < x; i++)

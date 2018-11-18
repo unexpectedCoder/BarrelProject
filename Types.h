@@ -21,7 +21,7 @@ namespace Consts {
 	const double delta = 1600;
 	const double kapa = 1;
 	const double lambda = 0;
-	const double p_flash = 1e6;
+	const double p_flash = 5e6;
 	// Для критерия Слухоцкого
 	const double C = 1e6;
 	// Для прямого перебора
@@ -322,7 +322,27 @@ struct Result
 		z = 0.0;
 	}*/
 
-	Result& operator=(const Result &other);
+	Result& operator=(const Result &other) {
+		if (this != &other)
+		{
+			this->Delta = other.Delta;
+			this->F0 = other.F0;
+			this->fi = other.fi;
+			this->L = other.L;
+			this->p = other.p;
+			this->psi = other.psi;
+			this->p_max = other.p_max;
+			this->t = other.t;
+			this->V = other.V;
+			this->W = other.W;
+			this->W0 = other.W0;
+			this->W_ch = other.W_ch;
+			this->w_q = other.w_q;
+			this->z = other.z;
+		}
+		return *this;
+	}
+
 	void byDefault() {
 		t = 0.0;
 		L = 0.0;
@@ -331,6 +351,7 @@ struct Result
 		V = 0.0;
 		z = 0.0;
 	}
+
 	friend std::ostream& operator<<(std::ostream &os, const Result &res);
 };
 typedef std::vector<Result> Results;
@@ -342,5 +363,17 @@ inline std::ostream& operator<<(std::ostream &os, const Result &r)
 
 	return os;
 }
+
+struct TestParams
+{
+	double
+		dt,
+		Delta,
+		w_q;
+	Powder pwd;
+
+	TestParams(double _dt, double _Delta, double _w_q, const Powder &_pwd) :
+		dt(_dt), Delta(_Delta), w_q(_w_q), pwd(_pwd) {}
+};
 
 #endif

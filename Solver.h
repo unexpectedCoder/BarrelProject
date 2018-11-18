@@ -26,6 +26,7 @@
 #define RESULTS_PATH "results/results.txt"
 #define BARR_LOG_PATH "files/barrel_log.txt"
 
+#define DIRSOL_TEST_PATH "direct_res/test.txt"
 #define POWDERS_PATH "powders.xml"
 #define PM_PATH "direct_res/pm"
 #define I_DIAG_PATH "direct_res/IDiag"
@@ -227,6 +228,7 @@ public:
 		std::cout << "\n\t<Решатель прямой задачи (DirectSolver)>\n";
 	}
 
+	void makeTest(const TestParams &tp);
 	void solve();
 	int showPowders();
 
