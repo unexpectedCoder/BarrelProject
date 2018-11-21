@@ -163,7 +163,6 @@ private:
 	double d, q, Vd, ns, S, K;
 	double p0, pm;
 	double l_d_max;
-	int key_V, key_S, key_Z;
 
 	void fillDelta();
 	void fill_wq();
@@ -188,35 +187,51 @@ private:
 	void writeLmFile(unsigned indx = 0);
 
 	// Система ОДУ
-	double dz(double p) {
-		return p / pwd.Ik * key_Z;
+	double dz(double z, double p) {
+		return p / pwd.Ik * ksi_end(z);
 	}
 	double dpsi(double z, double p) {
-		return (pwd.kappa1 * (1.0 + 2.0 * pwd.lambda1 * z) * key_S +
-			pwd.kappa2 * (1.0 + 2.0 * pwd.lambda2 * (z - 1.0)) * (1 - key_S)) * dz(p);
+		return (pwd.kappa1 * (1 + 2 * pwd.lambda1 * z) * ksi_s(z) +
+			pwd.kappa2 * (1 + 2 * pwd.lambda2 * (z - 1)) * (1 - ksi_s(z))) * dz(z, p);
 	}
 	double dL(double V) {
 		return V;
 	}
-	double dV(double p, double w_q, double fi) {
-		return p * S / (fi * q) * key_V;
+	double dV(double fi, double V, double p) {
+		return p * S / (fi * q) * ksi_v(p, V);
 	}
 	double dW(double omega, double z, double p, double V) {
-		return (1.0 - pwd.alpha * pwd.delta) / pwd.delta * omega * dpsi(z, p) + S * V;
+		return (1 - pwd.alpha * pwd.delta) / pwd.delta * omega * dpsi(z, p) + S * V;
 	}
-	double dp(double W, double omega, double _Delta, double p, double z, double L, double V, double F0) {
+	double dp(double omega, double F0, double W, double p, double z, double L, double V) {
 		return 1.0 / W * (pwd.f * omega * dpsi(z, p) -
-			(pwd.k - 1.0) * Consts::sigma_T * Consts::nu_T * p * (F0 + pi * d * L) / pwd.R() -
+			(pwd.k - 1) * Consts::sigma_T * Consts::nu_T * p * (F0 + pi * d * L) / pwd.R() -
 			pwd.k * p * dW(omega, z, p, V));
+	}
+	//
+	// Функции-переключатели
+	int ksi_end(double z) {
+		if (z > pwd.zk)
+			return 0;
+		return 1;
+	}
+	int ksi_v(double p, double V) {
+		if (p > p0 || V > 0)
+			return 1;
+		return 0;
+	}
+	int ksi_s(double z) {
+		if (z > 1)
+			return 0;
+		return 1;
 	}
 	//
 
 public:
 	DirectSolver(double _pm = 410e6, double _d = 0.1, double _q = 4.35, double _Vd = 1600, double _K = 1.03, double _p0 = 1e7, double _ns = 1) :
-		status("successfully"), pm(_pm), d(_d), q(_q), Vd(_Vd), K(_K), p0(_p0), ns(_ns), key_V(0), key_S(1), key_Z(1)
+		status("successfully"), pm(_pm), d(_d), q(_q), Vd(_Vd), K(_K), p0(_p0), ns(_ns)
 	{
-		pwds = Parser().readXMLPowders(POWDERS_PATH);
-		S = 0.25 * pi * d * d * ns;
+		S = 0.25 * pi * pow(d, 2.0) * ns;
 	}
 	~DirectSolver() {
 		delete[] Delta;

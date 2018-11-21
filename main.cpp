@@ -19,10 +19,10 @@ int main()
 	cin >> choice;
 	if (choice == '+')
 	{
-		TestSolver *test = new TestSolver();
-		test->printInfo();
-		test->solve();
-		test->printResults();
+		TestSolver test;
+		test.printInfo();
+		test.solve();
+		test.printResults();
 	}
 
 	// Расчет аналогов
@@ -30,10 +30,10 @@ int main()
 	cin >> choice;
 	if (choice == '+')
 	{
-		AnalogsSolver *asol = new AnalogsSolver;
-		asol->printInfo();
-		asol->solve();
-		asol->printResults();
+		AnalogsSolver asol;
+		asol.printInfo();
+		asol.solve();
+		asol.printResults();
 	}
 
 	cout << "Решить ОЗВБ аналитически? (+/-): ";
@@ -41,16 +41,16 @@ int main()
 	if (choice == '+')
 	{
 		// Расчет pm собственного образца
-		AnaliticSolver *analitic = new AnaliticSolver();
-		analitic->printInfo();
+		AnaliticSolver analitic;
+		analitic.printInfo();
 
 		cout << "\tРассчитать макс. давление собственного образца? (+/-): ";
 		cin >> choice;
 		if (choice == '+')
-			analitic->calcMaxPressure();
+			analitic.calcMaxPressure();
 
-		analitic->solve();
-		analitic->printResults();
+		analitic.solve();
+		analitic.printResults();
 	}
 
 	cout << "\n\nРешить прямую задачу перебором? (+/-): ";
@@ -64,7 +64,7 @@ int main()
 		cin >> choice;
 		if (choice == '+')
 		{
-			DirectSolver ds(0, 0.122, 21.76, 690, 1.05, 30e6, 1.04);
+			DirectSolver test(0, 0.122, 21.76, 690, 1.05, 30e6, 1.04);
 			Powder pwd;
 			pwd.f = 1.004e6;
 			pwd.k = 1.226;
@@ -80,7 +80,7 @@ int main()
 			pwd.kappa_f = 0.0003;
 			pwd.k_f = 0.0016;
 
-			ds.makeTest(TestParams(1e-5, 500, 0.18, pwd));
+			test.makeTest(TestParams(1e-5, 500, 0.18, pwd));
 		}
 
 		try {

@@ -481,6 +481,7 @@ void DirectSolver::makeTest(const TestParams &tp)
 
 	double dt = tp.dt;
 	pwd = tp.pwd;
+	cout << pwd << endl;
 
 	Result res;
 	res.byDefault();
@@ -506,6 +507,7 @@ void DirectSolver::makeTest(const TestParams &tp)
 void DirectSolver::solve()
 {
 	cout << "\t<Функция прямого решателя>\n";
+	pwds = Parser().readXMLPowders(POWDERS_PATH);
 	set_l_d_max();
 	fillDelta();
 	double dt = setTimeStep();
@@ -632,7 +634,7 @@ void DirectSolver::searchPmaxConds(double dt, double delta, Result &res)
 		res.byDefault();
 
 		calcToPmax(dt, res);
-		if (fabs(res.w_q - buf_w_q) < 1e-3)
+		if (fabs(res.w_q - buf_w_q) < 1e-5)
 			break;
 
 		buf_w_q = res.w_q;
@@ -650,8 +652,8 @@ void DirectSolver::continueCalc(double dt, Result &res)
 	while (res.V < Vd)
 	{
 		rksolve(dt, res);
-		if (res.V - buf_V < 0.0001 && res.V > 0)	// Если для какого-либо пороха
-			break;																	// невозможно достичь заданной скорости Vd
+		if (res.V - buf_V < 1e-5 && res.V > 0.0)	// Если для какого-либо пороха
+			break;																		// невозможно достичь заданной скорости Vd
 		buf_V = res.V;
 	}
 	res.W_ch = res.W0 + S * res.L;
@@ -729,10 +731,11 @@ void DirectSolver::calcIndicatDiag(double dt, unsigned indx)
 void DirectSolver::calcToPmax(double dt, Result &res)
 {
 	Result buf;			// Чтобы поймать достижение max(p)
-	buf.p = 0.0;
+	buf.p = 0;
 	while (buf.p < res.p)
 	{
 		buf = res;
+		cout << res.p * 1e-6 << endl;
 		rksolve(dt, res);
 	}
 	res = buf;
@@ -743,47 +746,40 @@ void DirectSolver::rksolve(double dt, Result &res)
 {
 	double fz[4], fpsi[4], fL[4], fV[4], fW[4], fp[4];
 
-	if (res.p > p0 || res.V > 0) key_V = 1;
-	else key_V = 0;
-	if (res.z > 1) key_S = 0;
-	else key_S = 1;
-	if (res.z > pwd.zk) key_Z = 0;
-	else key_Z = 1;
-
-	fz[0] = dt * dz(res.p);
+	fz[0] = dt * dz(res.z, res.p);
 	fpsi[0] = dt * dpsi(res.z, res.p);
-	fL[0] = dt * dL(res.V);
-	fV[0] = dt * dV(res.p, res.w_q, res.fi);
 	fW[0] = dt * dW(q * res.w_q, res.z, res.p, res.V);
-	fp[0] = dt * dp(res.W, q * res.w_q, res.Delta, res.p, res.z, res.L, res.V, res.F0);
+	fp[0] = dt * dp(q * res.w_q, res.F0, res.W, res.p, res.z, res.L, res.V);
+	fV[0] = dt * dV(res.fi, res.V, res.p);
+	fL[0] = dt * dL(res.V);
 
-	fz[1] = dt * dz(res.p + 0.5 * fp[0]);
+	fz[1] = dt * dz(res.z + 0.5 * fz[0], res.p + 0.5 * fp[0]);
 	fpsi[1] = dt * dpsi(res.z + 0.5 * fz[0], res.p + 0.5 * fp[0]);
-	fL[1] = dt * dL(res.V + 0.5 * fV[0]);
-	fV[1] = dt * dV(res.p + 0.5 * fp[0], res.w_q, res.fi);
 	fW[1] = dt * dW(q * res.w_q, res.z + 0.5 * fz[0], res.p + 0.5 * fp[0], res.V + 0.5 * fV[0]);
-	fp[1] = dt * dp(res.W + 0.5 * fW[0], q * res.w_q, res.Delta, res.p + 0.5 * fp[0],
-		res.z + 0.5 * fz[0], res.L + 0.5 * fL[0], res.V + 0.5 * fV[0], res.F0);
+	fp[1] = dt * dp(q * res.w_q, res.F0,
+		res.W + 0.5 * fW[0], res.p + 0.5 * fp[0], res.z + 0.5 * fz[0], res.L + 0.5 * fL[0], res.V + 0.5 * fV[0]);
+	fV[1] = dt * dV(res.fi, res.V + 0.5 * fV[0], res.p + 0.5 * fp[0]);
+	fL[1] = dt * dL(res.V + 0.5 * fV[0]);
 
-	fz[2] = dt * dz(res.p + 0.5 * fp[1]);
+	fz[2] = dt * dz(res.z + 0.5 * fz[1], res.p + 0.5 * fp[1]);
 	fpsi[2] = dt * dpsi(res.z + 0.5 * fz[1], res.p + 0.5 * fp[1]);
-	fL[2] = dt * dL(res.V + 0.5 * fV[1]);
-	fV[2] = dt * dV(res.p + 0.5 * fp[1], res.w_q, res.fi);
 	fW[2] = dt * dW(q * res.w_q, res.z + 0.5 * fz[1], res.p + 0.5 * fp[1], res.V + 0.5 * fV[1]);
-	fp[2] = dt * dp(res.W + 0.5 * fW[1], q * res.w_q, res.Delta, res.p + 0.5 * fp[1],
-		res.z + 0.5 * fz[1], res.L + 0.5 * fL[1], res.V + 0.5 * fV[1], res.F0);
+	fp[2] = dt * dp(q * res.w_q, res.F0,
+		res.W + 0.5 * fW[1], res.p + 0.5 * fp[1], res.z + 0.5 * fz[1], res.L + 0.5 * fL[1], res.V + 0.5 * fV[1]);
+	fV[2] = dt * dV(res.fi, res.V + 0.5 * fV[1], res.p + 0.5 * fp[1]);
+	fL[2] = dt * dL(res.V + 0.5 * fV[1]);
 
-	fz[3] = dt * dz(res.p + fp[2]);
+	fz[3] = dt * dz(res.z + fz[2], res.p + fp[2]);
 	fpsi[3] = dt * dpsi(res.z + fz[2], res.p + fp[2]);
-	fL[3] = dt * dL(res.V + fV[2]);
-	fV[3] = dt * dV(res.p + fp[2], res.w_q, res.fi);
 	fW[3] = dt * dW(q * res.w_q, res.z + fz[2], res.p + fp[2], res.V + fV[2]);
-	fp[3] = dt * dp(res.W + fW[2], q * res.w_q, res.Delta, res.p + fp[2],
-		res.z + fz[2], res.L + fL[2], res.V + fV[2], res.F0);
+	fp[3] = dt * dp(q * res.w_q, res.F0,
+		res.W + fW[2], res.p + fp[2], res.z + fz[2], res.L + fL[2], res.V + fV[2]);
+	fV[3] = dt * dV(res.fi, res.V + fV[2], res.p + fp[2]);
+	fL[3] = dt * dL(res.V + fV[2]);
 
 	res.t += dt;
 	res.z += (fz[0] + 2.0 * fz[1] + 2.0 * fz[2] + fz[3]) / 6.0;
-	res.psi += (fpsi[0] + 2.0 * fpsi[1] + 2.0 * fpsi[2] +fpsi[3]) / 6.0;
+	res.psi += (fpsi[0] + 2.0 * fpsi[1] + 2.0 * fpsi[2] + fpsi[3]) / 6.0;
 	res.L += (fL[0] + 2.0 * fL[1] + 2.0 * fL[2] + fL[3]) / 6.0;
 	res.V += (fV[0] + 2.0 * fV[1] + 2.0 * fV[2] + fV[3]) / 6.0;
 	res.W += (fW[0] + 2.0 * fW[1] + 2.0 * fW[2] + fW[3]) / 6.0;

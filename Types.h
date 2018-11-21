@@ -7,8 +7,8 @@
 #include <iostream>
 #include <fstream>
 
-const double eps = 1e-4;
-const double pi = 3.141592654;
+const double eps = 1e-9;
+const double pi = 3.1415926535897932384626433832795;
 
 namespace Consts {
 	// Общие константы для решения ОЗВБ
@@ -245,6 +245,7 @@ struct Matrix
 
 	friend std::ostream& operator<<(std::ostream &os, const Matrix &mtrx);
 };
+
 inline std::ostream& operator<<(std::ostream &os, const Matrix &mtrx)
 {
 	for (int i = 0; i < mtrx.x; i++)
