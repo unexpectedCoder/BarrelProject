@@ -29,6 +29,8 @@ namespace Consts {
 	const double nu_T = 0.7;
 }
 
+struct Result;
+
 struct Analog
 {
 	std::string name;
@@ -187,6 +189,51 @@ struct Barrel
 };
 typedef std::vector<Barrel> Barrels;
 
+struct Powder
+{
+	std::string name;
+	double
+		f,
+		k,
+		alpha,
+		T,
+		delta,
+		Ik,
+		zk,
+		kappa1,
+		lambda1,
+		kappa2,
+		lambda2,
+		kappa_f,
+		k_f;
+
+	double R() {
+		return f / T;
+	}
+	friend std::ostream& operator<<(std::ostream &os, const Powder &p);
+};
+typedef std::vector<Powder> Powders;
+
+inline std::ostream& operator<<(std::ostream &os, const Powder &p)
+{
+	os << "\tÏîðîõ " << p.name << ":\n";
+	os << "\t - f = " << p.f * 1e-6 << " (ÌÄæ/êã);\n";
+	os << "\t - k = " << p.k << ";\n";
+	os << "\t - alpha = " << p.alpha * 1e3 << " (äì^3/êã);\n";
+	os << "\t - delta = " << p.delta * 1e-3 << " (êã/äì^3);\n";
+	os << "\t - T = " << p.T << " (Ê);\n";
+	os << "\t - Ik = " << p.Ik * 1e-6 << " (ÌÏà*ñ);\n";
+	os << "\t - zk = " << p.zk << ";\n";
+	os << "\t - kappa1 = " << p.kappa1 << ";\n";
+	os << "\t - lambda1 = " << p.lambda1 << ";\n";
+	os << "\t - kappa2 = " << p.kappa2 << ";\n";
+	os << "\t - lambda2 = " << p.lambda2 << ";\n";
+	os << "\t - kappa_f = " << p.kappa_f << ";\n";
+	os << "\t - k_f = " << p.k_f << ";\n";
+
+	return os;
+}
+
 struct Matrix
 {
 	double **data;
@@ -259,48 +306,38 @@ inline std::ostream& operator<<(std::ostream &os, const Matrix &mtrx)
 	return os;
 }
 
-struct Powder
+struct CriterionParams
 {
-	std::string name;
+	std::string pwd_name;
+	double d;
 	double
-		f,
-		k,
-		alpha,
-		T,
-		delta,
-		Ik,
-		zk,
-		kappa1,
-		lambda1,
-		kappa2,
-		lambda2,
-		kappa_f,
-		k_f;
-
-	double R() {
-		return f / T;
-	}
-	friend std::ostream& operator<<(std::ostream &os, const Powder &p);
+		l_d_ref,
+		W0_d_ref,
+		w_q_ref,
+		pm_star;
+	double alpha[4];
+	double b;
+	double k[4];
 };
-typedef std::vector<Powder> Powders;
 
-inline std::ostream& operator<<(std::ostream &os, const Powder &p)
+struct Criterion
 {
-	os << "\tÏîðîõ " << p.name << ":\n";
-	os << "\t - f = " << p.f * 1e-6 << " (ÌÄæ/êã);\n";
-	os << "\t - k = " << p.k << ";\n";
-	os << "\t - alpha = " << p.alpha * 1e3 << " (äì^3/êã);\n";
-	os << "\t - delta = " << p.delta * 1e-3 << " (êã/äì^3);\n";
-	os << "\t - T = " << p.T << " (Ê);\n";
-	os << "\t - Ik = " << p.Ik * 1e-6 << " (ÌÏà*ñ);\n";
-	os << "\t - zk = " << p.zk << ";\n";
-	os << "\t - kappa1 = " << p.kappa1 << ";\n";
-	os << "\t - lambda1 = " << p.lambda1 << ";\n";
-	os << "\t - kappa2 = " << p.kappa2 << ";\n";
-	os << "\t - lambda2 = " << p.lambda2 << ";\n";
-	os << "\t - kappa_f = " << p.kappa_f << ";\n";
-	os << "\t - k_f = " << p.k_f << ";\n";
+	std::string pwd_name;
+	double
+		Delta,
+		w_q,
+		Z;
 
+	void calcCriterion(const Result &res, const CriterionParams &cp);
+	friend std::ostream& operator<<(std::ostream &os, const Criterion &cr);
+private:
+	double ksi_p(double pm, double pm_star, double b);
+};
+typedef std::vector<Criterion> Criterions;
+
+inline std::ostream& operator<<(std::ostream &os, const Criterion &cr)
+{
+	os << cr.pwd_name << '\t' << cr.Delta << '\t' << cr.w_q << '\t' << cr.Z;
 	return os;
 }
 
@@ -314,36 +351,6 @@ struct Result
 	double Delta, w_q;
 	double fi, F0;
 
-	/*Result() {
-		t = 0.0;
-		L = 0.0;
-		p = Consts::p_flash;
-		psi = 0.0;
-		V = 0.0;
-		z = 0.0;
-	}*/
-
-	Result& operator=(const Result &other) {
-		if (this != &other)
-		{
-			this->Delta = other.Delta;
-			this->F0 = other.F0;
-			this->fi = other.fi;
-			this->L = other.L;
-			this->p = other.p;
-			this->psi = other.psi;
-			this->p_max = other.p_max;
-			this->t = other.t;
-			this->V = other.V;
-			this->W = other.W;
-			this->W0 = other.W0;
-			this->W_ch = other.W_ch;
-			this->w_q = other.w_q;
-			this->z = other.z;
-		}
-		return *this;
-	}
-
 	void byDefault() {
 		t = 0.0;
 		L = 0.0;
@@ -352,7 +359,27 @@ struct Result
 		V = 0.0;
 		z = 0.0;
 	}
-
+	
+	Result& operator=(const Result &other) {
+		if (this != &other)
+		{
+			Delta = other.Delta;
+			F0 = other.F0;
+			fi = other.fi;
+			L = other.L;
+			p = other.p;
+			psi = other.psi;
+			p_max = other.p_max;
+			t = other.t;
+			V = other.V;
+			W = other.W;
+			W0 = other.W0;
+			W_ch = other.W_ch;
+			w_q = other.w_q;
+			z = other.z;
+		}
+		return *this;
+	}
 	friend std::ostream& operator<<(std::ostream &os, const Result &res);
 };
 typedef std::vector<Result> Results;

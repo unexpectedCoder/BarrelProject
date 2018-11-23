@@ -2,7 +2,6 @@
 
 using namespace std;
 
-// BARREL //
 void Barrel::calcHi1() {
 	hi1 = 1.0 - (Consts::k - 1.0) * p_mid / Consts::f * (1.0 - Consts::alpha_k * Consts::delta) / Consts::delta;
 }
@@ -125,7 +124,6 @@ double Barrel::calcZSluh(double v1_vd) {
 	return Z_Sluh;
 }
 
-// MATRIX //
 Matrix& Matrix::T()
 {
 	double **a = new double*[y];
@@ -156,4 +154,28 @@ Matrix& Matrix::zeros()
 			data[i][j] = 0;
 
 	return *this;
+}
+
+void Criterion::calcCriterion(const Result &res, const CriterionParams &cp)
+{
+	double alpha_n[4];
+	alpha_n[0] = -cp.k[0] * cp.alpha[0];
+	alpha_n[1] = -cp.k[1] * cp.alpha[1];
+	alpha_n[2] = -cp.k[2] * cp.alpha[2];
+	alpha_n[3] = -cp.k[3] * cp.alpha[3] * ksi_p(res.p_max, cp.pm_star, cp.b);
+
+	pwd_name = cp.pwd_name;
+	Delta = res.Delta;
+	w_q = res.w_q;
+	Z = pow((res.L / cp.d) / cp.l_d_ref, alpha_n[0]) *
+			pow((res.W0 / pow(cp.d, 3.0)) / cp.W0_d_ref, alpha_n[1]) *
+			pow(res.w_q / cp.w_q_ref, alpha_n[2]) *
+			pow(res.p / cp.pm_star, alpha_n[3]) / Consts::C;
+}
+
+double Criterion::ksi_p(double pm, double pm_star, double b)
+{
+	if (pm > pm_star)
+		return b * pm / pm_star;
+	return 1.0;
 }

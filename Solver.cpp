@@ -1,5 +1,6 @@
 #include "Solver.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <math.h>
 
@@ -512,17 +513,43 @@ void DirectSolver::solve()
 	fillDelta();
 	double dt = setTimeStep();
 
-	showPowders();								// Выводит список порохов для удобства выбора
+	cout << "\n\tРасчет критерия оптимизации:\n";
+	// Заполнение данных для расчета критерия
+	CriterionParams cp;
+	fillCriterionData(cp);
+
+	showPowders();
+
+	Criterions max_crs;		// Хранит максимальные значения среди всех порохов
 	while (true)
 	{
 		int indx = choosePowder();
 		if (indx < 0)								// Условие выхода из цикла -
 			break;										// отсутствие выбранного пороха
 
-		calcPmLine(dt, indx);				// Поиск данных для линии pm на индикаторной диаграмме
+		cp.pwd_name = pwd.name;
+		results.clear();
+
+		calcPmLine(dt, indx);
 		fill_wq();
-		calcIndicatDiag(dt, indx);	// Прямое численное решение ОЗВБ
+		calcIndicatDiag(dt, indx);
+
+		Criterions crs;							// Хранит значения для определенного пороха
+		calcCriterion(cp, crs);
+
+		string path;
+		setPath(Z_PATH, path, indx);
+		createFile(path);
+		writeCriterionsFile(path, crs);
+
+		max_crs.push_back(*maxCriterion(crs.begin(), crs.end()));
 	}
+
+	string path;
+	setPath(Z_MAX_PATH, path);
+	createFile(path, "", false);
+	writeMaxCriterionFile(path, max_crs);
+
 	writeLmFile();
 }
 
@@ -710,7 +737,6 @@ void DirectSolver::calcIndicatDiag(double dt, unsigned indx)
 		for (unsigned j = 0; j < size_wq; j++)
 		{
 			Result res;
-
 			// Начальные условия
 			res.byDefault();
 			res.Delta = Delta[i];
@@ -722,6 +748,8 @@ void DirectSolver::calcIndicatDiag(double dt, unsigned indx)
 
 			calcToPmax(dt, res);
 			continueCalc(dt, res);
+
+			results.push_back(res);
 
 			writeFileDiag(path, res);
 		}
@@ -735,7 +763,6 @@ void DirectSolver::calcToPmax(double dt, Result &res)
 	while (buf.p < res.p)
 	{
 		buf = res;
-		cout << res.p * 1e-6 << endl;
 		rksolve(dt, res);
 	}
 	res = buf;
@@ -842,6 +869,85 @@ double DirectSolver::funcW0(double w)
 	return w - l_d_max * d * S;
 }
 
+void DirectSolver::fillCriterionData(CriterionParams &cp)
+{
+	cp.d = d;
+
+	cout << "\t - (l / d)_ref: ";
+	cin >> cp.l_d_ref;
+	cout << "\t - (W0 / d^3)_ref: ";
+	cin >> cp.W0_d_ref;
+	cout << "\t - (w / q)_ref: ";
+	cin >> cp.w_q_ref;
+	cp.pm_star = pm;
+
+	cout << "\n\t - alpha1: ";
+	cin >> cp.alpha[0];
+	cout << "\t - alpha2: ";
+	cin >> cp.alpha[1];
+	cout << "\t - alpha3: ";
+	cin >> cp.alpha[2];
+	cout << "\t - alpha4: ";
+	cin >> cp.alpha[3];
+
+	cout << "\n\t - коэф-т штрафной ф-ции давления (b): ";
+	cin >> cp.b;
+}
+
+void DirectSolver::calcCriterion(CriterionParams &cp, Criterions &crs)
+{
+	calcCriterionCoeffs(cp);
+	for (Results::iterator itr = results.begin(); itr != results.end(); itr++)
+	{
+		Criterion cr;
+		cr.calcCriterion(*itr, cp);
+		crs.push_back(cr);
+	}
+}
+
+void DirectSolver::calcCriterionCoeffs(CriterionParams &cp)
+{
+	// Перезапись в double вектора для удобства поиска экстремумов
+	vector<double> v_ld;
+	vector<double> v_W0;
+	vector<double> v_wq;
+	vector<double> v_pm;
+
+	if (!results.empty())
+	{
+		for (Results::iterator itr = results.begin(); itr != results.end(); itr++)
+		{
+			v_ld.push_back(itr->L);
+			v_W0.push_back(itr->W0);
+			v_wq.push_back(itr->w_q);
+			v_pm.push_back(itr->p_max);
+		}
+
+		cp.k[0] = cp.l_d_ref /
+			((*max_element(v_ld.begin(), v_ld.end()) - *min_element(v_ld.begin(), v_ld.end())) / d);
+		cp.k[1] = cp.W0_d_ref /
+			((*max_element(v_W0.begin(), v_W0.end()) - *min_element(v_W0.begin(), v_W0.end())) / pow(d, 3.0));
+		cp.k[2] = cp.w_q_ref /
+			(*max_element(v_wq.begin(), v_wq.end()) - *min_element(v_wq.begin(), v_wq.end()));
+		cp.k[3] = cp.pm_star /
+			(*max_element(v_pm.begin(), v_pm.end()) - *min_element(v_pm.begin(), v_pm.end()));
+	}
+}
+
+Criterions::iterator DirectSolver::maxCriterion(const Criterions::iterator &start,
+																								const Criterions::iterator &end)
+{
+	Criterions::iterator ans;
+	double max = start->Z;
+	for (Criterions::iterator itr = start; itr < end; itr++)
+		if (max < itr->Z)
+		{
+			max = itr->Z;
+			ans = itr;
+		}
+	return ans;
+}
+
 void DirectSolver::setPath(const string &base_path, string &res_path, unsigned num)
 {
 	res_path = base_path;
@@ -858,11 +964,38 @@ void DirectSolver::setPath(const string &base_path, string &res_path, unsigned n
 	res_path += ".txt";
 }
 
-void DirectSolver::createFile(const string &path, const string &head)
+void DirectSolver::createFile(const string &path, const string &head, bool w_name)
 {
 	Parser::createFile(path);
+	if (!head.empty() || w_name)
+	{
+		Parser par(path, 'w');
+		if (w_name)
+			par.write(pwd.name + "\n");
+		if (!head.empty())
+			par.write(head + "\n");
+	}
+}
 
-	Parser par(path, 'w');
-	par.write(pwd.name + "\n");
-	par.write(head + "\n");
+void DirectSolver::writeCriterionsFile(const std::string &path, const Criterions &crs)
+{
+	Parser par(path, 'a');
+	for (Criterions::const_iterator i = crs.begin(); i != crs.end(); i++)
+	{
+		par.write(i->Delta, '\t');
+		par.write(i->w_q, '\t');
+		par.write(i->Z, '\n');
+	}
+}
+
+void DirectSolver::writeMaxCriterionFile(const std::string &path, const Criterions &crs)
+{
+	Parser par(path, 'a');
+	for (Criterions::const_iterator i = crs.begin(); i != crs.end(); i++)
+	{
+		par.write(i->pwd_name + "\t");
+		par.write(i->Delta, '\t');
+		par.write(i->w_q, '\t');
+		par.write(i->Z, '\n');
+	}
 }

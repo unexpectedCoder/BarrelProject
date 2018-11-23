@@ -31,6 +31,8 @@
 #define PM_PATH "direct_res/pm"
 #define I_DIAG_PATH "direct_res/IDiag"
 #define LM_PATH "direct_res/lm"
+#define Z_PATH "direct_res/Z"
+#define Z_MAX_PATH "direct_res/Zmax"
 
 class Error
 {
@@ -163,6 +165,7 @@ private:
 	double d, q, Vd, ns, S, K;
 	double p0, pm;
 	double l_d_max;
+	Results results;
 
 	void fillDelta();
 	void fill_wq();
@@ -178,13 +181,21 @@ private:
 	void rksolve(double dt, Result &res);
 
 	void setPath(const std::string &base_path, std::string &res_path, unsigned num = 0);
-	void createFile(const std::string &path, const std::string &head = "");
+	void createFile(const std::string &path, const std::string &head = "", bool w_name = true);
 	void writeFilePm(const std::string &path, const Result &res);
 	void writeResultsToFile(const std::string &path, const Results &rs);
 	void writeFileDiag(const std::string &path, const Result &res);
 
 	double funcW0(double w);
 	void writeLmFile(unsigned indx = 0);
+
+	void fillCriterionData(CriterionParams &cr);
+	void calcCriterionCoeffs(CriterionParams &cp);
+	void calcCriterion(CriterionParams &cp, Criterions &crs);
+	Criterions::iterator maxCriterion(const Criterions::iterator &start,
+																		const Criterions::iterator &end);
+	void writeCriterionsFile(const std::string &path, const Criterions &crs);
+	void writeMaxCriterionFile(const std::string &path, const Criterions &crs);
 
 	// Система ОДУ
 	double dz(double z, double p) {
