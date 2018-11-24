@@ -488,10 +488,7 @@ void DirectSolver::makeTest(const TestParams &tp)
 	res.byDefault();
 	res.Delta = tp.Delta;
 	res.w_q = tp.w_q;						// Начальное приближение
-	res.fi = K + 1.0 / 3.0 * res.w_q;
-	res.W0 = q * res.w_q / res.Delta;
-	res.W = res.W0 - q * res.w_q / pwd.delta;
-	res.F0 = 4.0 * res.W0 / d + 2.0 * S;
+	res.update(d, q, S, K, pwd.delta);
 
 	calcToPmax(dt, res);
 	par.write("p_max = ", res.p_max * 1e-6);
@@ -535,7 +532,7 @@ void DirectSolver::solve()
 		calcIndicatDiag(dt, indx);
 
 		Criterions crs;							// Хранит значения для определенного пороха
-		calcCriterion(cp, crs);
+		calcCriterions(cp, crs);
 
 		string path;
 		setPath(Z_PATH, path, indx);
@@ -544,13 +541,16 @@ void DirectSolver::solve()
 
 		max_crs.push_back(*maxCriterion(crs.begin(), crs.end()));
 	}
-
 	string path;
 	setPath(Z_MAX_PATH, path);
 	createFile(path, "", false);
 	writeMaxCriterionFile(path, max_crs);
-
 	writeLmFile();
+
+	cout << "\t<Решение прямой задачи для max(Z)>\n";
+	Criterion cr = *maxCriterion(max_crs.begin(), max_crs.end());
+	cout << "\tМаксимальный критерий: " << cr << endl;
+	solveOnce(dt, cr.Delta, cr.w_q);
 }
 
 void DirectSolver::set_l_d_max()
@@ -605,8 +605,7 @@ int DirectSolver::showPowders()
 	int i = 0;
 	cout << "\tСписок порохов:\n";
 	for (Powders::const_iterator itr = pwds.begin(); itr != pwds.end(); itr++)
-		cout << ++i << ") " << *itr << endl;
-
+		cout << ++i << ") " << itr->name << endl;
 	return i;
 }
 
@@ -650,26 +649,19 @@ void DirectSolver::searchPmaxConds(double dt, double delta, Result &res)
 {
 	res.Delta = delta;
 	res.w_q = 1.5;						// Начальное приближение
-	res.fi = K + 1.0 / 3.0 * res.w_q;
-	res.W0 = q * res.w_q / res.Delta;
-	res.W = res.W0 - q * res.w_q / pwd.delta;
-	res.F0 = 4.0 * res.W0 / d + 2.0 * S;
 
 	double buf_w_q = 0.0;
 	while (true)
 	{
 		res.byDefault();
-
+		
 		calcToPmax(dt, res);
 		if (fabs(res.w_q - buf_w_q) < 1e-5)
 			break;
 
 		buf_w_q = res.w_q;
 		res.w_q *= sqrt(pm / res.p);
-		res.fi = K + 1.0 / 3.0 * res.w_q;
-		res.W0 = q * res.w_q / res.Delta;
-		res.W = res.W0 - q * res.w_q / pwd.delta;
-		res.F0 = 4.0 * res.W0 / d + 2.0 * S;
+		res.update(d, q, S, K, pwd.delta);
 	}
 }
 
@@ -680,7 +672,7 @@ void DirectSolver::continueCalc(double dt, Result &res)
 	{
 		rksolve(dt, res);
 		if (res.V - buf_V < 1e-5 && res.V > 0.0)	// Если для какого-либо пороха
-			break;																		// невозможно достичь заданной скорости Vd
+			break;																	// невозможно достичь заданной скорости Vd
 		buf_V = res.V;
 	}
 	res.W_ch = res.W0 + S * res.L;
@@ -741,14 +733,10 @@ void DirectSolver::calcIndicatDiag(double dt, unsigned indx)
 			res.byDefault();
 			res.Delta = Delta[i];
 			res.w_q = w_q[j];
-			res.fi = K + 1.0 / 3.0 * res.w_q;
-			res.W0 = q * res.w_q / res.Delta;
-			res.W = res.W0 - q * res.w_q / pwd.delta;
-			res.F0 = 4.0 * res.W0 / d + 2.0 * S;
+			res.update(d, q, S, K, pwd.delta);
 
 			calcToPmax(dt, res);
 			continueCalc(dt, res);
-
 			results.push_back(res);
 
 			writeFileDiag(path, res);
@@ -872,6 +860,8 @@ double DirectSolver::funcW0(double w)
 void DirectSolver::fillCriterionData(CriterionParams &cp)
 {
 	cp.d = d;
+	cp.pm_star = pm;
+	cp.l_d_max = l_d_max;
 
 	cout << "\t - (l / d)_ref: ";
 	cin >> cp.l_d_ref;
@@ -879,7 +869,6 @@ void DirectSolver::fillCriterionData(CriterionParams &cp)
 	cin >> cp.W0_d_ref;
 	cout << "\t - (w / q)_ref: ";
 	cin >> cp.w_q_ref;
-	cp.pm_star = pm;
 
 	cout << "\n\t - alpha1: ";
 	cin >> cp.alpha[0];
@@ -890,17 +879,24 @@ void DirectSolver::fillCriterionData(CriterionParams &cp)
 	cout << "\t - alpha4: ";
 	cin >> cp.alpha[3];
 
-	cout << "\n\t - коэф-т штрафной ф-ции давления (b): ";
+	cout << "\n\t - коэф-т штрафной ф-ции длины ведущей части в калибрах (a): ";
+	cin >> cp.a;
+	cout << "\t - коэф-т штрафной ф-ции давления (b): ";
 	cin >> cp.b;
 }
 
-void DirectSolver::calcCriterion(CriterionParams &cp, Criterions &crs)
+void DirectSolver::calcCriterions(CriterionParams &cp, Criterions &crs)
 {
 	calcCriterionCoeffs(cp);
 	for (Results::iterator itr = results.begin(); itr != results.end(); itr++)
 	{
 		Criterion cr;
 		cr.calcCriterion(*itr, cp);
+		if (itr->p_max < pm && itr->L / d < l_d_max)
+			cr.is_valid = true;
+		else
+			cr.is_valid = false;
+
 		crs.push_back(cr);
 	}
 }
@@ -940,11 +936,12 @@ Criterions::iterator DirectSolver::maxCriterion(const Criterions::iterator &star
 	Criterions::iterator ans;
 	double max = start->Z;
 	for (Criterions::iterator itr = start; itr < end; itr++)
-		if (max < itr->Z)
-		{
-			max = itr->Z;
-			ans = itr;
-		}
+		if (itr->is_valid)
+			if (max < itr->Z)
+			{
+				max = itr->Z;
+				ans = itr;
+			}
 	return ans;
 }
 
@@ -979,12 +976,26 @@ void DirectSolver::createFile(const string &path, const string &head, bool w_nam
 
 void DirectSolver::writeCriterionsFile(const std::string &path, const Criterions &crs)
 {
-	Parser par(path, 'a');
-	for (Criterions::const_iterator i = crs.begin(); i != crs.end(); i++)
+	// Записывает данные в файл в виде матрицы
+
+	unsigned step = 0;
+	for (Criterions::const_iterator i = crs.begin(); i != crs.end() - 1; i++)
 	{
-		par.write(i->Delta, '\t');
-		par.write(i->w_q, '\t');
-		par.write(i->Z, '\n');
+		step++;
+		if (fabs((i + 1)->Delta - i->Delta) > eps)
+			break;
+	}
+
+	Parser par(path, 'a');
+	par.write(0);
+	for (unsigned i = 0; i < crs.size(); i += step)
+		par.write('\t', crs[i].Delta);
+
+	for (unsigned i = 0; i < step; i++)
+	{
+		par.write('\n', crs[i].w_q);
+		for (unsigned j = i; j < crs.size(); j += step)
+			par.write('\t', crs[j].Z);
 	}
 }
 
@@ -997,5 +1008,69 @@ void DirectSolver::writeMaxCriterionFile(const std::string &path, const Criterio
 		par.write(i->Delta, '\t');
 		par.write(i->w_q, '\t');
 		par.write(i->Z, '\n');
+	}
+}
+
+void DirectSolver::solveOnce(double dt, double Delta, double w_q)
+{
+	showPowders();
+	int indx = choosePowder();
+
+	Result res;
+	res.byDefault();
+	res.Delta = Delta;
+	res.w_q = w_q;
+	res.update(d, q, S, K, pwd.delta);
+
+	Results rs;
+	calcToPmax(dt, res, rs);
+	continueCalc(dt, res, rs);
+
+	string path;
+	setPath(SOL_ONCE_PATH, path, indx);
+	createFile(path, "t\tp\tV\tL\tpsi\tz");
+	writeResultFile(path, rs);
+}
+
+void DirectSolver::calcToPmax(double dt, Result &res, Results &rs)
+{
+	Result buf;			// Чтобы поймать достижение max(p)
+	buf.p = 0;
+	while (buf.p < res.p)
+	{
+		rs.push_back(res);
+		buf = res;
+		rksolve(dt, res);
+	}
+	res = buf;
+	res.p_max = res.p;
+}
+
+void DirectSolver::continueCalc(double dt, Result &res, Results &rs)
+{
+	rs.push_back(res);
+	double buf_V = res.V;
+	while (res.V < Vd)
+	{
+		rksolve(dt, res);
+		rs.push_back(res);
+		if (res.V - buf_V < 1e-5 && res.V > 0.0)	// Если для какого-либо пороха
+			break;																	// невозможно достичь заданной скорости Vd
+		buf_V = res.V;
+	}
+	res.W_ch = res.W0 + S * res.L;
+}
+
+void DirectSolver::writeResultFile(const string &path, const Results &rs)
+{
+	Parser par(path, 'a');
+	for (Results::const_iterator itr = rs.begin(); itr != rs.end(); itr++)
+	{
+		par.write(itr->t, '\t');
+		par.write(itr->p * 1e-6, '\t');
+		par.write(itr->V, '\t');
+		par.write(itr->L, '\t');
+		par.write(itr->psi, '\t');
+		par.write(itr->z, '\n');
 	}
 }

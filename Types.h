@@ -7,7 +7,7 @@
 #include <iostream>
 #include <fstream>
 
-const double eps = 1e-9;
+const double eps = 1e-8;
 const double pi = 3.1415926535897932384626433832795;
 
 namespace Consts {
@@ -310,13 +310,10 @@ struct CriterionParams
 {
 	std::string pwd_name;
 	double d;
-	double
-		l_d_ref,
-		W0_d_ref,
-		w_q_ref,
-		pm_star;
+	double l_d_ref, W0_d_ref, w_q_ref;
+	double l_d_max, pm_star;
 	double alpha[4];
-	double b;
+	double a, b;
 	double k[4];
 };
 
@@ -327,10 +324,13 @@ struct Criterion
 		Delta,
 		w_q,
 		Z;
+	bool is_valid;		// Удовлетворяет ли ограничениям по l_d_max и pm*
 
+	Criterion() : Delta(0), w_q(0), Z(0), is_valid(false) {}
 	void calcCriterion(const Result &res, const CriterionParams &cp);
 	friend std::ostream& operator<<(std::ostream &os, const Criterion &cr);
 private:
+	double ksi_l_d(double l_d, double l_d_max, double a);
 	double ksi_p(double pm, double pm_star, double b);
 };
 typedef std::vector<Criterion> Criterions;
@@ -359,6 +359,12 @@ struct Result
 		V = 0.0;
 		z = 0.0;
 	}
+	void update(double d, double q, double S, double K, double pwd_delta) {
+		fi = K + 1.0 / 3.0 * w_q;
+		W0 = q * w_q / Delta;
+		W = W0 - q * w_q / pwd_delta;
+		F0 = 4.0 * W0 / d + 2.0 * S;
+	}
 	
 	Result& operator=(const Result &other) {
 		if (this != &other)
@@ -386,8 +392,8 @@ typedef std::vector<Result> Results;
 
 inline std::ostream& operator<<(std::ostream &os, const Result &r)
 {
-	os << r.t << ' ' << r.Delta << ' ' << r.w_q << ' ' << r.p << ' ' <<
-		r.V << ' ' << r.L << ' ' << ' ' << r.W0 << ' ' << r.W << ' ' << r.z << '\n';
+	os << r.t << ' ' << r.Delta << ' ' << r.w_q << ' ' << r.p * 1e-6 << ' ' <<
+		r.V << ' ' << r.L << ' ' << ' ' << r.W0 * 1e3 << ' ' << r.W * 1e3 << ' ' << r.z << '\n';
 
 	return os;
 }

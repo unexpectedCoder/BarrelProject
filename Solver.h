@@ -33,6 +33,7 @@
 #define LM_PATH "direct_res/lm"
 #define Z_PATH "direct_res/Z"
 #define Z_MAX_PATH "direct_res/Zmax"
+#define SOL_ONCE_PATH "direct_res/FullSol"
 
 class Error
 {
@@ -174,6 +175,8 @@ private:
 	void searchPmaxConds(double dt, double delta, Result &res);
 	void calcToPmax(double dt, Result &res);
 	void continueCalc(double dt, Result &res);
+	void calcToPmax(double dt, Result &res, Results &rs);
+	void continueCalc(double dt, Result &res, Results &rs);
 	
 	void set_l_d_max();
 	void calcPmLine(double dt, unsigned indx);
@@ -191,19 +194,22 @@ private:
 
 	void fillCriterionData(CriterionParams &cr);
 	void calcCriterionCoeffs(CriterionParams &cp);
-	void calcCriterion(CriterionParams &cp, Criterions &crs);
+	void calcCriterions(CriterionParams &cp, Criterions &crs);
 	Criterions::iterator maxCriterion(const Criterions::iterator &start,
 																		const Criterions::iterator &end);
 	void writeCriterionsFile(const std::string &path, const Criterions &crs);
 	void writeMaxCriterionFile(const std::string &path, const Criterions &crs);
+
+	void solveOnce(double dt, double Delta, double w_q);
+	void writeResultFile(const std::string &path, const Results &rs);
 
 	// Система ОДУ
 	double dz(double z, double p) {
 		return p / pwd.Ik * ksi_end(z);
 	}
 	double dpsi(double z, double p) {
-		return (pwd.kappa1 * (1 + 2 * pwd.lambda1 * z) * ksi_s(z) +
-			pwd.kappa2 * (1 + 2 * pwd.lambda2 * (z - 1)) * (1 - ksi_s(z))) * dz(z, p);
+		return (pwd.kappa1 * (1.0 + 2.0 * pwd.lambda1 * z) * ksi_s(z) +
+			pwd.kappa2 * (1.0 + 2.0 * pwd.lambda2 * (z - 1.0)) * (1 - ksi_s(z))) * dz(z, p);
 	}
 	double dL(double V) {
 		return V;
@@ -212,11 +218,11 @@ private:
 		return p * S / (fi * q) * ksi_v(p, V);
 	}
 	double dW(double omega, double z, double p, double V) {
-		return (1 - pwd.alpha * pwd.delta) / pwd.delta * omega * dpsi(z, p) + S * V;
+		return (1.0 - pwd.alpha * pwd.delta) / pwd.delta * omega * dpsi(z, p) + S * V;
 	}
 	double dp(double omega, double F0, double W, double p, double z, double L, double V) {
 		return 1.0 / W * (pwd.f * omega * dpsi(z, p) -
-			(pwd.k - 1) * Consts::sigma_T * Consts::nu_T * p * (F0 + pi * d * L) / pwd.R() -
+			(pwd.k - 1.0) * Consts::sigma_T * Consts::nu_T * p * (F0 + pi * d * L) / pwd.R() -
 			pwd.k * p * dW(omega, z, p, V));
 	}
 	//

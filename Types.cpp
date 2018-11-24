@@ -159,7 +159,7 @@ Matrix& Matrix::zeros()
 void Criterion::calcCriterion(const Result &res, const CriterionParams &cp)
 {
 	double alpha_n[4];
-	alpha_n[0] = -cp.k[0] * cp.alpha[0];
+	alpha_n[0] = -cp.k[0] * cp.alpha[0] * ksi_l_d(res.L / cp.d, cp.l_d_max, cp.a);
 	alpha_n[1] = -cp.k[1] * cp.alpha[1];
 	alpha_n[2] = -cp.k[2] * cp.alpha[2];
 	alpha_n[3] = -cp.k[3] * cp.alpha[3] * ksi_p(res.p_max, cp.pm_star, cp.b);
@@ -170,7 +170,14 @@ void Criterion::calcCriterion(const Result &res, const CriterionParams &cp)
 	Z = pow((res.L / cp.d) / cp.l_d_ref, alpha_n[0]) *
 			pow((res.W0 / pow(cp.d, 3.0)) / cp.W0_d_ref, alpha_n[1]) *
 			pow(res.w_q / cp.w_q_ref, alpha_n[2]) *
-			pow(res.p / cp.pm_star, alpha_n[3]) / Consts::C;
+			pow(res.p / cp.pm_star, alpha_n[3]) * 1e-3;
+}
+
+double Criterion::ksi_l_d(double l_d, double l_d_max, double a)
+{
+	if (l_d > l_d_max)
+		return a * l_d / l_d_max;
+	return 1.0;
 }
 
 double Criterion::ksi_p(double pm, double pm_star, double b)
