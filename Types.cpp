@@ -156,7 +156,7 @@ Matrix& Matrix::zeros()
 	return *this;
 }
 
-void Criterion::calcCriterion(const Result &res, const CriterionParams &cp)
+void Criterion::calcCriterion(const CResult &res, const CriterionParams &cp)
 {
 	double alpha_n[4];
 	alpha_n[0] = -cp.k[0] * cp.alpha[0] * ksi_l_d(res.L / cp.d, cp.l_d_max, cp.a);
@@ -170,7 +170,7 @@ void Criterion::calcCriterion(const Result &res, const CriterionParams &cp)
 	Z = pow((res.L / cp.d) / cp.l_d_ref, alpha_n[0]) *
 			pow((res.W0 / pow(cp.d, 3.0)) / cp.W0_d_ref, alpha_n[1]) *
 			pow(res.w_q / cp.w_q_ref, alpha_n[2]) *
-			pow(res.p / cp.pm_star, alpha_n[3]) * 1e-3;
+			pow(res.p_max / cp.pm_star, alpha_n[3]) * 1e-3;
 }
 
 double Criterion::ksi_l_d(double l_d, double l_d_max, double a)

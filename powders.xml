@@ -3,17 +3,17 @@
 <root>
 <POWDERS>
 
-	<Powder name="18/1 òð">
+	<Powder name="18/1_òð">
 		<Data f="1.008" k="1.223" alpha="1.006" T="2935" delta="1.6" Ik="1.1" zk="1" kappa1="1" lambda1="0" kappa2="0" lambda2="0" kappa_f="0.0003" k_f="0.0016"/>
 	</Powder>
 	<!--18/1 òð-->
 
-	<Powder name="ÀÏÖ-235 Ï 16/1">
+	<Powder name="ÀÏÖ-235_Ï_16/1">
 		<Data f="1.101" k="1.25" alpha="1.02" T="3060" delta="1.63" Ik="1.14" zk="1" kappa1="1" lambda1="0" kappa2="0" lambda2="0" kappa_f="0.0003" k_f="0.0022"/>
 	</Powder>
 	<!--ÀÏÖ-235 Ï 16/1-->
 
-	<Powder name="ÄÃ-4 14/1">
+	<Powder name="ÄÃ-4_14/1">
 		<Data f="1.004" k="1.243" alpha="1.085" T="2655" delta="1.52" Ik="1.05" zk="1" kappa1="1" lambda1="0" kappa2="0" lambda2="0" kappa_f="0.00036" k_f="0.0022"/>
 	</Powder>
 	<!--ÄÃ-4 14/1-->
@@ -23,7 +23,7 @@
 	</Powder>
 	<!--14/7-->
 
-	<Powder name="16/1 òð Â/À">
+	<Powder name="16/1_òð_Â/À">
 		<Data f="1.015" k="1.224" alpha="1.009" T="2940" delta="1.6" Ik="1.04" zk="1" kappa1="1" lambda1="0" kappa2="0" lambda2="0" kappa_f="0.00025" k_f="0.0016"/>
 	</Powder>
 	<!--16/1 òð Â/À-->

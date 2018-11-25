@@ -1,5 +1,7 @@
 #include "Parser.h"
 
+#include <sstream>
+
 using namespace std;
 
 Parser::Parser(const string &path, char mode)

@@ -20,9 +20,9 @@ int main()
 	if (choice == '+')
 	{
 		TestSolver test;
-		test.printInfo();
+		test.printIntro();
 		test.solve();
-		test.printResults();
+		test.printOutro();
 	}
 
 	// Расчет аналогов
@@ -31,9 +31,9 @@ int main()
 	if (choice == '+')
 	{
 		AnalogsSolver asol;
-		asol.printInfo();
+		asol.printIntro();
 		asol.solve();
-		asol.printResults();
+		asol.printOutro();
 	}
 
 	cout << "Решить ОЗВБ аналитически? (+/-): ";
@@ -42,7 +42,7 @@ int main()
 	{
 		// Расчет pm собственного образца
 		AnaliticSolver analitic;
-		analitic.printInfo();
+		analitic.printIntro();
 
 		cout << "\tРассчитать макс. давление собственного образца? (+/-): ";
 		cin >> choice;
@@ -50,15 +50,15 @@ int main()
 			analitic.calcMaxPressure();
 
 		analitic.solve();
-		analitic.printResults();
+		analitic.printOutro();
 	}
 
+	DirectSolver dirsol;
 	cout << "\n\nРешить прямую задачу перебором? (+/-): ";
 	cin >> choice;
 	if (choice == '+')
 	{
-		DirectSolver dirsol;
-		dirsol.printInfo();
+		dirsol.printIntro();
 
 		cout << "\tПроизвести тестовое решение? (+/-): ";
 		cin >> choice;
@@ -89,7 +89,23 @@ int main()
 		catch (const string &ex) {
 			cout << ex << endl;
 		}
-		dirsol.printResults();
+		dirsol.printOutro();
+	}
+
+	cout << "Рассчитать критерий оптимизации? (+/-): ";
+	cin >> choice;
+	if (choice == '+')
+	{
+		dirsol.calcCriterions();
+		dirsol.printOutro();
+	}
+
+	cout << "Решить прямую задачу? (+/-): ";
+	cin >> choice;
+	if (choice == '+')
+	{
+		dirsol.solveOnce();
+		dirsol.printOutro();
 	}
 
 	cout << endl << endl;

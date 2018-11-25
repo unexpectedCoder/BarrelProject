@@ -30,6 +30,7 @@ namespace Consts {
 }
 
 struct Result;
+struct CResult;
 
 struct Analog
 {
@@ -327,7 +328,7 @@ struct Criterion
 	bool is_valid;		// Удовлетворяет ли ограничениям по l_d_max и pm*
 
 	Criterion() : Delta(0), w_q(0), Z(0), is_valid(false) {}
-	void calcCriterion(const Result &res, const CriterionParams &cp);
+	void calcCriterion(const CResult &res, const CriterionParams &cp);
 	friend std::ostream& operator<<(std::ostream &os, const Criterion &cr);
 private:
 	double ksi_l_d(double l_d, double l_d_max, double a);
@@ -409,5 +410,16 @@ struct TestParams
 	TestParams(double _dt, double _Delta, double _w_q, const Powder &_pwd) :
 		dt(_dt), Delta(_Delta), w_q(_w_q), pwd(_pwd) {}
 };
+
+struct CResult
+{
+	double t;
+	double Delta, w_q;
+	double p_max;
+	double W0, W_ch;
+	double V, L;
+	double z, psi;
+};
+typedef std::vector<CResult> CResults;
 
 #endif

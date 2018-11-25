@@ -54,9 +54,9 @@ public:
 class Solver
 {
 public:
-	virtual void printInfo() = 0;
+	virtual void printIntro() = 0;
 	virtual void solve() = 0;
-	virtual void printResults() = 0;
+	virtual void printOutro() = 0;
 
 	virtual double calcCE15(double cq, double ce, double eta) {
 		return 0.5 * 15.0 / cq * (ce - 3.0 * eta * cq + sqrt(pow(ce - 3.0 * eta * cq, 2.0) + 4.0 / 5.0 * ce * eta * pow(cq, 2.0)));
@@ -79,11 +79,11 @@ public:
 		barr = new Barrel(StartData(0.122, 21.76, 690, 3e7, 1.05, 1.04));
 	}
 
-	void printInfo() {
+	void printIntro() {
 		std::cout << "\n\t<Òåñòîâûé ðåøàòåëü (TestSolver)>\n";
 	}
 	void solve();
-	void printResults() {
+	void printOutro() {
 		std::cout << "ÑÒÀÒÓÑ ÂÛÏÎËÍÅÍÈß: " << status << ".\n";
 		if (status != "failed")
 			std::cout << "ÐÅÇÓËÜÒÀÒÛ: ñì. ôàéë " << TEST_PATH << ".\n\n";
@@ -106,11 +106,11 @@ private:
 public:
 	AnalogsSolver() : status("successfully") {}
 
-	void printInfo() {
+	void printIntro() {
 		std::cout << "\n\t<Ðåøàòåëü äëÿ àíàëîãîâ (AnalogsSolver)>\n";
 	}
 	void solve();
-	void printResults() {
+	void printOutro() {
 		std::cout << "ÑÒÀÒÓÑ ÂÛÏÎËÍÅÍÈß: " << status << ".\n";
 		if (status != "failed")
 			std::cout << "ÐÅÇÓËÜÒÀÒÛ: ñì. ôàéë " << ANALOGS_PATH << ".\n\n";
@@ -142,12 +142,12 @@ public:
 		eta_K.~vector();
 	}
 
-	void printInfo() {
+	void printIntro() {
 		std::cout << "\n\t<Àíàëèòè÷åñêèé ðåøàòåëü (AnaliticSolver)>\n";
 	}
 	void calcMaxPressure();
 	void solve();
-	void printResults() {
+	void printOutro() {
 		std::cout << "ÑÒÀÒÓÑ ÂÛÏÎËÍÅÍÈß: " << status << ".\n";
 		if (status != "failed")
 			std::cout << "ÐÅÇÓËÜÒÀÒÛ: ñì. â ïàïêå results.\n\n";
@@ -193,14 +193,15 @@ private:
 	void writeLmFile(unsigned indx = 0);
 
 	void fillCriterionData(CriterionParams &cr);
-	void calcCriterionCoeffs(CriterionParams &cp);
-	void calcCriterions(CriterionParams &cp, Criterions &crs);
+	void calcCriterionCoeffs(const CResults &rs, CriterionParams &cp);
 	Criterions::iterator maxCriterion(const Criterions::iterator &start,
 																		const Criterions::iterator &end);
+	void fillCriterions(const CResults &rs, const CriterionParams &cp, Criterions &crs);
+	void readResults(const std::string &path, CResults &rs);
+	void getMaxCriterion(const std::string &path, Criterion &max_cr);
 	void writeCriterionsFile(const std::string &path, const Criterions &crs);
 	void writeMaxCriterionFile(const std::string &path, const Criterions &crs);
 
-	void solveOnce(double dt, double Delta, double w_q);
 	void writeResultFile(const std::string &path, const Results &rs);
 
 	// Ñèñòåìà ÎÄÓ
@@ -248,6 +249,7 @@ public:
 	DirectSolver(double _pm = 410e6, double _d = 0.1, double _q = 4.35, double _Vd = 1600, double _K = 1.03, double _p0 = 1e7, double _ns = 1) :
 		status("successfully"), pm(_pm), d(_d), q(_q), Vd(_Vd), K(_K), p0(_p0), ns(_ns)
 	{
+		pwds = Parser().readXMLPowders(POWDERS_PATH);
 		S = 0.25 * pi * pow(d, 2.0) * ns;
 	}
 	~DirectSolver() {
@@ -256,15 +258,17 @@ public:
 		pwds.~vector();
 	}
 
-	void printInfo() {
+	void printIntro() {
 		std::cout << "\n\t<Ðåøàòåëü ïðÿìîé çàäà÷è (DirectSolver)>\n";
 	}
 
 	void makeTest(const TestParams &tp);
 	void solve();
+	void calcCriterions();
+	void solveOnce();
 	int showPowders();
 
-	void printResults() {
+	void printOutro() {
 		std::cout << "ÑÒÀÒÓÑ ÂÛÏÎËÍÅÍÈß: " << status << ".\n";
 		if (status != "failed")
 			std::cout << "ÐÅÇÓËÜÒÀÒÛ: ñì. â ïàïêå direct_res.\n\n";
