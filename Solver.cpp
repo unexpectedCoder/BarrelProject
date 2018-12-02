@@ -940,15 +940,10 @@ void DirectSolver::calcCriterionCoeffs(const CResults &rs, CriterionParams &cp)
 			v_wq.push_back(itr->w_q);
 			v_pm.push_back(itr->p_max);
 		}
-
-		cp.k[0] = cp.l_d_ref /
-			((*max_element(v_ld.begin(), v_ld.end()) - *min_element(v_ld.begin(), v_ld.end())) / d);
-		cp.k[1] = cp.W0_d_ref /
-			((*max_element(v_W0.begin(), v_W0.end()) - *min_element(v_W0.begin(), v_W0.end())) / pow(d, 3.0));
-		cp.k[2] = cp.w_q_ref /
-			(*max_element(v_wq.begin(), v_wq.end()) - *min_element(v_wq.begin(), v_wq.end()));
-		cp.k[3] = cp.pm_star /
-			(*max_element(v_pm.begin(), v_pm.end()) - *min_element(v_pm.begin(), v_pm.end()));
+		cp.k[0] = 1;
+		cp.k[1] = 1;
+		cp.k[2] = 1;
+		cp.k[3] = 1;
 	}
 }
 
@@ -958,12 +953,11 @@ Criterions::iterator DirectSolver::maxCriterion(const Criterions::iterator &star
 	Criterions::iterator ans = start;
 	double max = start->Z;
 	for (Criterions::iterator itr = start; itr < end; itr++)
-		if (itr->is_valid)
-			if (max < itr->Z)
-			{
-				max = itr->Z;
-				ans = itr;
-			}
+		if (max < itr->Z)
+		{
+			max = itr->Z;
+			ans = itr;
+		}
 	return ans;
 }
 
@@ -1112,16 +1106,29 @@ void DirectSolver::writeResultFile(const string &path, const Results &rs)
 
 void DirectSolver::fillCriterions(const CResults &rs, const CriterionParams &cp, Criterions &crs)
 {
-	for (CResults::const_iterator itr = rs.begin(); itr != rs.end(); itr++)
-	{
-		Criterion cr;
-		cr.calcCriterion(*itr, cp);
-		if (itr->p_max < pm && itr->L / d < l_d_max)
-			cr.is_valid = true;
-		else
-			cr.is_valid = false;
-		crs.push_back(cr);
-	}
+	char ch;
+	cout << "Критерий Слухоцкого/обобщенный критерий? (+/-): ";
+	cin >> ch;
+
+	if (ch == '+')
+		for (CResults::const_iterator itr = rs.begin(); itr != rs.end(); itr++)
+		{
+			Criterion cr;
+			cr.Delta = itr->Delta;
+			cr.w_q = itr->w_q;
+
+			double L0 = itr->W0 / S;
+			double hi = 1.666;
+			cr.calcCriterionSluh(L0, itr->L, hi, d, itr->p_max / pm, 1.5);
+			crs.push_back(cr);
+		}
+	else
+		for (CResults::const_iterator itr = rs.begin(); itr != rs.end(); itr++)
+		{
+			Criterion cr;
+			cr.calcCriterion(*itr, cp);
+			crs.push_back(cr);
+		}
 }
 
 void DirectSolver::setPath(const string &base_path, string &res_path, unsigned num)

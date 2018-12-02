@@ -325,10 +325,10 @@ struct Criterion
 		Delta,
 		w_q,
 		Z;
-	bool is_valid;		// Удовлетворяет ли ограничениям по l_d_max и pm*
 
-	Criterion() : Delta(0), w_q(0), Z(0), is_valid(false) {}
+	Criterion() : Delta(0), w_q(0), Z(0) {}
 	void calcCriterion(const CResult &res, const CriterionParams &cp);
+	void calcCriterionSluh(double L0, double LD, double hi, double d, double p_pm, double ap);
 	friend std::ostream& operator<<(std::ostream &os, const Criterion &cr);
 private:
 	double ksi_l_d(double l_d, double l_d_max, double a);

@@ -114,7 +114,8 @@ void Barrel::calcForEtaK(double eta_K)
 	Ik = sqrt(Consts::f * omega * fi * q * B) / S;
 }
 
-double Barrel::calcZSluh() {
+double Barrel::calcZSluh()
+{
 	Z_Sluh = Consts::C * sqrt(1.0 + Lambda_D) / (pow(omega_q, 1.5) * pow((LD + L0 / hi + 1.5 * d) / d, 4.0));
 	return Z_Sluh;
 }
@@ -170,7 +171,13 @@ void Criterion::calcCriterion(const CResult &res, const CriterionParams &cp)
 	Z = pow((res.L / cp.d) / cp.l_d_ref, alpha_n[0]) *
 			pow((res.W0 / pow(cp.d, 3.0)) / cp.W0_d_ref, alpha_n[1]) *
 			pow(res.w_q / cp.w_q_ref, alpha_n[2]) *
-			pow(res.p_max / cp.pm_star, alpha_n[3]) * 1e-3;
+			pow(res.p_max / cp.pm_star, alpha_n[3]);
+}
+
+void Criterion::calcCriterionSluh(double L0, double LD, double hi, double d, double p_pm, double ap)
+{
+	Z = Consts::C * sqrt(1.0 + LD / L0) / (pow(w_q, 1.5) * pow((LD + L0 / hi + 1.5 * d) / d, 4.0)) *
+			pow(p_pm, -ap * ksi_p(410e6 * p_pm, 410e6, 2));
 }
 
 double Criterion::ksi_l_d(double l_d, double l_d_max, double a)
