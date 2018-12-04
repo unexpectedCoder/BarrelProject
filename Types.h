@@ -328,7 +328,6 @@ struct Criterion
 
 	Criterion() : Delta(0), w_q(0), Z(0) {}
 	void calcCriterion(const CResult &res, const CriterionParams &cp);
-	void calcCriterionSluh(double L0, double LD, double hi, double d, double p_pm, double ap);
 	friend std::ostream& operator<<(std::ostream &os, const Criterion &cr);
 private:
 	double ksi_l_d(double l_d, double l_d_max, double a);
@@ -338,7 +337,7 @@ typedef std::vector<Criterion> Criterions;
 
 inline std::ostream& operator<<(std::ostream &os, const Criterion &cr)
 {
-	os << cr.pwd_name << '\t' << cr.Delta << '\t' << cr.w_q << '\t' << cr.Z;
+	os << cr.pwd_name << "\tDelta, êã/ì^3: " << cr.Delta << "\tw / q: " << cr.w_q << "\tZ: " << cr.Z;
 	return os;
 }
 

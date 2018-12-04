@@ -809,24 +809,40 @@ void DirectSolver::writeResultsToFile(const std::string &path, const Results &rs
 
 void DirectSolver::writeLmFile(unsigned indx)
 {
-	string path;
-	setPath(LM_PATH, path, indx);
-	createFile(path, "W0\tW");
+	string path_W, path_D;
+	setPath(LM_W_PATH, path_W, indx);
+	setPath(LM_DELTA_PATH, path_D, indx);
+	createFile(path_W, "W0\tW");
+	createFile(path_D, "Delta\tw / q");
 
-	double w[2];
-	w[0] = 41e-3;
-	w[1] = 46e-3;
+	double W[2];
+	W[0] = 41e-3;
+	W[1] = 46e-3;
 
-	Parser par(path, 'a');
-	par.write(funcW0(w[0]) * 1e3, '\t');
-	par.write(w[0] * 1e3, '\n');
-	par.write(funcW0(w[1]) * 1e3, '\t');
-	par.write(w[1] * 1e3);
+	Parser par(path_W, 'a');
+	par.write("\n", funcW0(W[0]) * 1e3, '\t');
+	par.write(W[0] * 1e3, '\n');
+	par.write(funcW0(W[1]) * 1e3, '\t');
+	par.write(W[1] * 1e3);
+	par.close();
+
+	double delta[2];
+	delta[0] = 760;
+	delta[1] = 790;
+	double wq[2];
+	wq[0] = funcW0(W[0]) * delta[0] / q;
+	wq[1] = funcW0(W[1]) * delta[1] / q;
+
+	par.open(path_D, 'a');
+	par.write("\n", delta[0], '\t');
+	par.write(wq[0], '\n');
+	par.write(delta[1], '\t');
+	par.write(wq[1]);
 }
 
-double DirectSolver::funcW0(double w)
+double DirectSolver::funcW0(double W)
 {
-	return w - l_d_max * d * S;
+	return W - l_d_max * d * S;
 }
 
 void DirectSolver::fillCriterionData(CriterionParams &cp)
@@ -1078,6 +1094,13 @@ void DirectSolver::getMaxCriterion(const string &path, Criterion &max_cr)
 {
 	Parser par(path, 'r');
 	Criterions crs;
+	readCriterionFile(path, crs);
+	max_cr = *maxCriterion(crs.begin(), crs.end());
+}
+
+void DirectSolver::readCriterionFile(const string &path, Criterions &crs)
+{
+	Parser par(path, 'r');
 	while (!par.isEnd())
 	{
 		Criterion cr;
@@ -1087,7 +1110,16 @@ void DirectSolver::getMaxCriterion(const string &path, Criterion &max_cr)
 		cr.Z = par.readNext();
 		crs.push_back(cr);
 	}
-	max_cr = *maxCriterion(crs.begin(), crs.end());
+}
+
+void DirectSolver::fillCriterions(const CResults &rs, const CriterionParams &cp, Criterions &crs)
+{
+	for (CResults::const_iterator itr = rs.begin(); itr != rs.end(); itr++)
+	{
+		Criterion cr;
+		cr.calcCriterion(*itr, cp);
+		crs.push_back(cr);
+	}
 }
 
 void DirectSolver::writeResultFile(const string &path, const Results &rs)
@@ -1102,33 +1134,6 @@ void DirectSolver::writeResultFile(const string &path, const Results &rs)
 		par.write(itr->psi, '\t');
 		par.write(itr->z);
 	}
-}
-
-void DirectSolver::fillCriterions(const CResults &rs, const CriterionParams &cp, Criterions &crs)
-{
-	char ch;
-	cout << "Критерий Слухоцкого/обобщенный критерий? (+/-): ";
-	cin >> ch;
-
-	if (ch == '+')
-		for (CResults::const_iterator itr = rs.begin(); itr != rs.end(); itr++)
-		{
-			Criterion cr;
-			cr.Delta = itr->Delta;
-			cr.w_q = itr->w_q;
-
-			double L0 = itr->W0 / S;
-			double hi = 1.666;
-			cr.calcCriterionSluh(L0, itr->L, hi, d, itr->p_max / pm, 1.5);
-			crs.push_back(cr);
-		}
-	else
-		for (CResults::const_iterator itr = rs.begin(); itr != rs.end(); itr++)
-		{
-			Criterion cr;
-			cr.calcCriterion(*itr, cp);
-			crs.push_back(cr);
-		}
 }
 
 void DirectSolver::setPath(const string &base_path, string &res_path, unsigned num)

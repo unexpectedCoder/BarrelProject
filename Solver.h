@@ -30,7 +30,8 @@
 #define POWDERS_PATH "powders.xml"
 #define PM_PATH "direct_res/pm"
 #define I_DIAG_PATH "direct_res/IDiag"
-#define LM_PATH "direct_res/lm"
+#define LM_W_PATH "direct_res/lm(W)"
+#define LM_DELTA_PATH "direct_res/lm(Delta)"
 #define Z_PATH "direct_res/Z"
 #define Z_MAX_PATH "direct_res/Zmax"
 #define SOL_ONCE_PATH "direct_res/FullSol"
@@ -199,6 +200,7 @@ private:
 	void fillCriterions(const CResults &rs, const CriterionParams &cp, Criterions &crs);
 	void readResults(const std::string &path, CResults &rs);
 	void getMaxCriterion(const std::string &path, Criterion &max_cr);
+	void readCriterionFile(const std::string &path, Criterions &crs);
 	void writeCriterionsFile(const std::string &path, const Criterions &crs);
 	void writeMaxCriterionFile(const std::string &path, const Criterions &crs);
 

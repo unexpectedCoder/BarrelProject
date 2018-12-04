@@ -174,12 +174,6 @@ void Criterion::calcCriterion(const CResult &res, const CriterionParams &cp)
 			pow(res.p_max / cp.pm_star, alpha_n[3]);
 }
 
-void Criterion::calcCriterionSluh(double L0, double LD, double hi, double d, double p_pm, double ap)
-{
-	Z = Consts::C * sqrt(1.0 + LD / L0) / (pow(w_q, 1.5) * pow((LD + L0 / hi + 1.5 * d) / d, 4.0)) *
-			pow(p_pm, -ap * ksi_p(410e6 * p_pm, 410e6, 2));
-}
-
 double Criterion::ksi_l_d(double l_d, double l_d_max, double a)
 {
 	if (l_d > l_d_max)
