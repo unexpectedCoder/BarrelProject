@@ -92,8 +92,8 @@ const Powders& Parser::readXMLPowders(const string &path)
 		powder.k = ndpow.child("Data").attribute("k").as_double();
 		powder.kappa1 = ndpow.child("Data").attribute("kappa1").as_double();
 		powder.kappa2 = ndpow.child("Data").attribute("kappa2").as_double();
-		powder.kappa_f = ndpow.child("Data").attribute("kappa_f").as_double();
-		powder.k_f = ndpow.child("Data").attribute("k_f").as_double();
+		powder.k_f = ndpow.child("Data").attribute("kappa_f").as_double();
+		powder.k_I = ndpow.child("Data").attribute("k_f").as_double();
 		powder.lambda1 = ndpow.child("Data").attribute("lambda1").as_double();
 		powder.lambda2 = ndpow.child("Data").attribute("lambda2").as_double();
 		powder.T = ndpow.child("Data").attribute("T").as_double();

@@ -77,8 +77,8 @@ int main()
 			pwd.lambda1 = 0.183;
 			pwd.kappa2 = 0.546;
 			pwd.lambda2 = -0.957;
-			pwd.kappa_f = 0.0003;
-			pwd.k_f = 0.0016;
+			pwd.k_f = 0.0003;
+			pwd.k_I = 0.0016;
 
 			test.makeTest(TestParams(1e-5, 500, 0.18, pwd));
 		}
@@ -104,7 +104,23 @@ int main()
 	cin >> choice;
 	if (choice == '+')
 	{
-		dirsol.solveOnce();
+		double dt = 0;
+		cout << "\tШаг по времени, мкс: ";
+		while (true)
+		{
+			cin >> dt;
+			dt *= 1e-6;
+			if (dt > 1e-8 || dt < 1e-4)
+				break;
+			cout << "\tЧе? Давай по-новой.\n";
+		}
+
+		dirsol.solveOnce(dt, 15);
+		cout << "\tДлина ствола при +15C, м: " << dirsol.getBarLen() << endl;
+
+		dirsol.solveOnce(dt, -50);
+		dirsol.solveOnce(dt, 50);
+
 		dirsol.printOutro();
 	}
 

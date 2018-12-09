@@ -845,34 +845,6 @@ double DirectSolver::funcW0(double W)
 	return W - l_d_max * d * S;
 }
 
-void DirectSolver::fillCriterionData(CriterionParams &cp)
-{
-	cp.d = d;
-	cp.pm_star = pm;
-	cp.l_d_max = l_d_max;
-
-	cout << "\t - (l / d)_ref: ";
-	cin >> cp.l_d_ref;
-	cout << "\t - (W0 / d^3)_ref: ";
-	cin >> cp.W0_d_ref;
-	cout << "\t - (w / q)_ref: ";
-	cin >> cp.w_q_ref;
-
-	cout << "\n\t - alpha1: ";
-	cin >> cp.alpha[0];
-	cout << "\t - alpha2: ";
-	cin >> cp.alpha[1];
-	cout << "\t - alpha3: ";
-	cin >> cp.alpha[2];
-	cout << "\t - alpha4: ";
-	cin >> cp.alpha[3];
-
-	cout << "\n\t - коэф-т штрафной ф-ции длины ведущей части в калибрах (a): ";
-	cin >> cp.a;
-	cout << "\t - коэф-т штрафной ф-ции давления (b): ";
-	cin >> cp.b;
-}
-
 void DirectSolver::calcCriterions()
 {
 	cout << "\n\tРасчет критерия оптимизации:\n";
@@ -911,6 +883,34 @@ void DirectSolver::calcCriterions()
 	setPath(Z_MAX_PATH, path);
 	createFile(path, "", false);
 	writeMaxCriterionFile(path, max_crs);
+}
+
+void DirectSolver::fillCriterionData(CriterionParams &cp)
+{
+	cp.d = d;
+	cp.pm_star = pm;
+	cp.l_d_max = l_d_max;
+
+	cout << "\t - (l / d)_ref: ";
+	cin >> cp.l_d_ref;
+	cout << "\t - (W0 / d^3)_ref: ";
+	cin >> cp.W0_d_ref;
+	cout << "\t - (w / q)_ref: ";
+	cin >> cp.w_q_ref;
+
+	cout << "\n\t - alpha1: ";
+	cin >> cp.alpha[0];
+	cout << "\t - alpha2: ";
+	cin >> cp.alpha[1];
+	cout << "\t - alpha3: ";
+	cin >> cp.alpha[2];
+	cout << "\t - alpha4: ";
+	cin >> cp.alpha[3];
+
+	cout << "\n\t - коэф-т штрафной ф-ции длины ведущей части в калибрах (a): ";
+	cin >> cp.a;
+	cout << "\t - коэф-т штрафной ф-ции давления (b): ";
+	cin >> cp.b;
 }
 
 void DirectSolver::readResults(const string &path, CResults &rs)
@@ -1014,38 +1014,34 @@ void DirectSolver::writeMaxCriterionFile(const std::string &path, const Criterio
 	}
 }
 
-void DirectSolver::solveOnce()
+void DirectSolver::solveOnce(double dt, int start_temp_C)
 {
 	cout << "\n\t<Решение прямой задачи>\n";
 
+	if (start_temp_C == T_N)
+	{
+		solveStandartTemp(dt);
+		return;
+	}
+	if (Ld == 0)
+	{
+		cout << "Warning: требуется решение при стандартной температуре для определения длины ведущей части!\n";
+		return;
+	}
+	
 	double delta, wq;
-	char ch;
-	cout << "\tРешить для max(Z)? (+/-): ";
-	cin >> ch;
-
-	double dt = setTimeStep();
-
-	if (ch == '+')
-	{
-		string path;
-		setPath(Z_MAX_PATH, path);
-		Criterion max_cr;
-		getMaxCriterion(path, max_cr);
-		cout << "\tМаксимальный критерий: " << max_cr << endl;
-
-		delta = max_cr.Delta;
-		wq = max_cr.w_q;
-	}
-	else
-	{
-		cout << "\t - плотность заряжания, кг/м^3:\t";
-		cin >> delta;
-		cout << "\t - относительная масса заряда:\t";
-		cin >> wq;
-	}
+	string path;
+	setPath(Z_MAX_PATH, path);
+	Criterion max_cr;
+	getMaxCriterion(path, max_cr);
+	cout << "\tМаксимальный критерий: " << max_cr << endl;
+	delta = max_cr.Delta;
+	wq = max_cr.w_q;
 
 	showPowders();
-	int indx = choosePowder();
+	choosePowder();
+	pwd.abnormalTemperature(start_temp_C);
+
 	Result res;
 	res.byDefault();
 	res.Delta = delta;
@@ -1053,10 +1049,40 @@ void DirectSolver::solveOnce()
 	res.update(d, q, S, K, pwd.delta);
 	Results rs;
 	calcToPmax(dt, res, rs);
-	continueCalc(dt, res, rs);
+	continueCalcLd(dt, res, rs);
 
+	setPath(SOL_ONCE_PATH, path, start_temp_C);
+	createFile(path, "t\tp\tV\tL\tpsi\tz");
+	writeResultFile(path, rs);
+}
+
+void DirectSolver::solveStandartTemp(double dt)
+{
+	double delta, wq;
 	string path;
-	setPath(SOL_ONCE_PATH, path, indx);
+	setPath(Z_MAX_PATH, path);
+	Criterion max_cr;
+	getMaxCriterion(path, max_cr);
+	cout << "\tМаксимальный критерий: " << max_cr << endl;
+	delta = max_cr.Delta;
+	wq = max_cr.w_q;
+
+	showPowders();
+	choosePowder();
+	// pwd.abnormalTemperature(start_temp_C);
+
+	Result res;
+	res.byDefault();
+	res.Delta = delta;
+	res.w_q = wq;
+	res.update(d, q, S, K, pwd.delta);
+	Results rs;
+	calcToPmax(dt, res, rs);
+	continueCalcVd(dt, res, rs);
+
+	Ld = res.L;
+
+	setPath(SOL_ONCE_PATH, path, T_N);
 	createFile(path, "t\tp\tV\tL\tpsi\tz");
 	writeResultFile(path, rs);
 }
@@ -1075,7 +1101,7 @@ void DirectSolver::calcToPmax(double dt, Result &res, Results &rs)
 	res.p_max = res.p;
 }
 
-void DirectSolver::continueCalc(double dt, Result &res, Results &rs)
+void DirectSolver::continueCalcVd(double dt, Result &res, Results &rs)
 {
 	rs.push_back(res);
 	double buf_V = res.V;
@@ -1087,6 +1113,18 @@ void DirectSolver::continueCalc(double dt, Result &res, Results &rs)
 			break;																	// невозможно достичь заданной скорости Vd
 		buf_V = res.V;
 	}
+	res.W_ch = res.W0 + S * res.L;
+}
+
+void DirectSolver::continueCalcLd(double dt, Result &res, Results &rs)
+{
+	rs.push_back(res);
+	while (res.L < Ld)
+	{
+		rksolve(dt, res);
+		rs.push_back(res);
+	}
+	rs.pop_back();
 	res.W_ch = res.W0 + S * res.L;
 }
 
@@ -1136,15 +1174,17 @@ void DirectSolver::writeResultFile(const string &path, const Results &rs)
 	}
 }
 
-void DirectSolver::setPath(const string &base_path, string &res_path, unsigned num)
+void DirectSolver::setPath(const string &base_path, string &res_path, int num)
 {
 	res_path = base_path;
 	if (num != 0)
 	{
 		char buf[3];
-		_itoa_s(num, buf, 10);
+		_itoa_s(fabs(num), buf, 10);
 
 		res_path = base_path;
+		if (num < 0)
+			res_path += "_";
 		res_path += buf;
 		res_path += ".txt";
 		return;

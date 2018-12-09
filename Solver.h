@@ -168,6 +168,7 @@ private:
 	double p0, pm;
 	double l_d_max;
 	Results results;
+	double Ld;
 
 	void fillDelta();
 	void fill_wq();
@@ -177,14 +178,15 @@ private:
 	void calcToPmax(double dt, Result &res);
 	void continueCalc(double dt, Result &res);
 	void calcToPmax(double dt, Result &res, Results &rs);
-	void continueCalc(double dt, Result &res, Results &rs);
+	void continueCalcVd(double dt, Result &res, Results &rs);		// Обрезка по дул. скорости
+	void continueCalcLd(double dt, Result &res, Results &rs);		// ... по длине ведущей части
 	
 	void set_l_d_max();
 	void calcPmLine(double dt, unsigned indx);
 	void calcIndicatDiag(double dt, unsigned indx);
 	void rksolve(double dt, Result &res);
 
-	void setPath(const std::string &base_path, std::string &res_path, unsigned num = 0);
+	void setPath(const std::string &base_path, std::string &res_path, int num = 0);
 	void createFile(const std::string &path, const std::string &head = "", bool w_name = true);
 	void writeFilePm(const std::string &path, const Result &res);
 	void writeResultsToFile(const std::string &path, const Results &rs);
@@ -204,6 +206,7 @@ private:
 	void writeCriterionsFile(const std::string &path, const Criterions &crs);
 	void writeMaxCriterionFile(const std::string &path, const Criterions &crs);
 
+	void solveStandartTemp(double dt);
 	void writeResultFile(const std::string &path, const Results &rs);
 
 	// Система ОДУ
@@ -253,6 +256,7 @@ public:
 	{
 		pwds = Parser().readXMLPowders(POWDERS_PATH);
 		S = 0.25 * pi * pow(d, 2.0) * ns;
+		Ld = 0;
 	}
 	~DirectSolver() {
 		delete[] Delta;
@@ -267,8 +271,12 @@ public:
 	void makeTest(const TestParams &tp);
 	void solve();
 	void calcCriterions();
-	void solveOnce();
+	void solveOnce(double dt, int start_temp_C);
 	int showPowders();
+
+	double getBarLen() const {
+		return Ld;
+	}
 
 	void printOutro() {
 		std::cout << "СТАТУС ВЫПОЛНЕНИЯ: " << status << ".\n";

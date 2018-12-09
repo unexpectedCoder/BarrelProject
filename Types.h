@@ -7,8 +7,10 @@
 #include <iostream>
 #include <fstream>
 
+#define T_N 15
+
 const double eps = 1e-8;
-const double pi = 3.1415926535897932384626433832795;
+const double pi = 3.14159265;
 
 namespace Consts {
 	// Общие константы для решения ОЗВБ
@@ -205,13 +207,24 @@ struct Powder
 		lambda1,
 		kappa2,
 		lambda2,
-		kappa_f,
-		k_f;
+		k_f,
+		k_I;
 
 	double R() {
 		return f / T;
 	}
+	void abnormalTemperature(double t) {
+		buf_f = f;
+		buf_I = Ik;
+		
+		f = buf_f * (1 + k_f * (t - T_N));
+		Ik = buf_I * (1 - k_I * (t - T_N));
+	}
 	friend std::ostream& operator<<(std::ostream &os, const Powder &p);
+
+private:
+	double buf_f;			// Хранят нормальные значения
+	double buf_I;			// ..........................
 };
 typedef std::vector<Powder> Powders;
 
@@ -229,8 +242,8 @@ inline std::ostream& operator<<(std::ostream &os, const Powder &p)
 	os << "\t - lambda1 = " << p.lambda1 << ";\n";
 	os << "\t - kappa2 = " << p.kappa2 << ";\n";
 	os << "\t - lambda2 = " << p.lambda2 << ";\n";
-	os << "\t - kappa_f = " << p.kappa_f << ";\n";
-	os << "\t - k_f = " << p.k_f << ";\n";
+	os << "\t - kappa_f = " << p.k_f << ";\n";
+	os << "\t - k_f = " << p.k_I << ";\n";
 
 	return os;
 }
