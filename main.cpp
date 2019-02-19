@@ -1,10 +1,14 @@
 #include <iostream>
 #include <Windows.h>
 
-#include "Solver.h"
+#include "AnaliticSolver.h"
+#include "AnalogsSolver.h"
+#include "DirectSolver.h"
+#include "TestSolver.h"
 #include "Types.h"
 
 using namespace std;
+
 
 int main()
 {
@@ -25,7 +29,6 @@ int main()
 		test.printOutro();
 	}
 
-	// Расчет аналогов
 	cout << "Рассчитать аналоги? (+/-): ";
 	cin >> choice;
 	if (choice == '+')
@@ -40,7 +43,7 @@ int main()
 	cin >> choice;
 	if (choice == '+')
 	{
-		// Расчет pm собственного образца
+		// Calculate maximum of pressure own sample
 		AnaliticSolver analitic;
 		analitic.printIntro();
 

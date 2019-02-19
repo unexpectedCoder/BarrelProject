@@ -94,7 +94,7 @@ struct Chuev
 	}
 };
 
-struct StartData
+struct BarrelParams
 {
 	double d;
 	double q;
@@ -104,7 +104,7 @@ struct StartData
 	double K;
 	double ns;
 
-	StartData(double _d = 0.1, double _q = 4.35, double _vd = 1600, double _p0 = 1e7, double _K = 1.03, double _ns = 1.0) :
+	BarrelParams(double _d = 0.1, double _q = 4.35, double _vd = 1600, double _p0 = 1e7, double _K = 1.03, double _ns = 1.0) :
 		d(_d), q(_q), vd(_vd), p0(_p0), K(_K), ns(_ns) {}
 };
 
@@ -153,14 +153,14 @@ struct Barrel
 	double Ik;
 	double Z_Sluh;
 
-	Barrel(const StartData &data = StartData()) :
+	Barrel(const BarrelParams &data = BarrelParams()) :
 		d(data.d), q(data.q), vd(data.vd), p0(data.p0), K(data.K), ns(data.ns)
 	{
 		Cq = q / pow(d * 10.0, 3.0);
 		CE = q * pow(vd, 2.0) / (2e3 * Consts::g * pow(d * 10.0, 3.0));
 		r_Dmin = 1.0 / 6.0 * pow(vd, 2.0) / (Consts::f / (Consts::k - 1.0));
 	}
-	Barrel(const Barrel &barr, const StartData &data) :
+	Barrel(const Barrel &barr, const BarrelParams &data) :
 		p0(data.p0), K(data.K)
 	{
 		d = barr.d;

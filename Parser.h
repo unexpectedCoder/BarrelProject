@@ -5,41 +5,23 @@
 #include <string>
 #include "pugixml.hpp"
 
+#include "AbstractTxtParser.h"
 #include "Types.h"
 
-class Parser
+class Parser : public AbstractTXTParser
 {
 private:
-	std::fstream file;
 	Barrel barr;
 	Powders powders;
 
 public:
 	Parser() {}
 	Parser(const std::string &path, char mode);
-	~Parser() {
-		file.close();
-	}
+	~Parser();
 
-	bool open(const std::string &path, char mode);
-	bool close();
-
-	double readNext();
-	std::string readStr();
 	Barrel& readBarrel();
 	const Powders& readXMLPowders(const std::string &path);
-
-	void write(const std::string &txt);
-	void write(const std::string &txt, double x, char split = '\n');
-	void write(double x);
-	void write(char split, double x);
-	void write(double x, char split);
 	void writeBarrel(const Barrel &barr);
-
-	bool isOpen() const;
-	bool isEnd() const;
-
-	static void createFile(const std::string &path);
 };
 
 #endif
